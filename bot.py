@@ -8,15 +8,18 @@ from discord import app_commands
 from discord.errors import NotFound
 
 from config import DISCORD_BOT_TOKEN, DISCORD_GUILD_ID, TARGET_PROJECT_PATH
-from formatters import (
-    fmt_time,
-    formatar_cleanup,
-    formatar_falha_meeseeks,
-    formatar_pushback,
-    formatar_sucesso,
-    render_garagem_status,
-    render_meeseeks_status,
+from embeds import (
+    embed_dev_server_falhou,
+    embed_garagem_engasgou,
+    embed_garagem_no_slug,
+    embed_garagem_pushback,
+    embed_garagem_working,
+    embed_meeseeks_falha,
+    embed_meeseeks_spawn,
+    embed_meeseeks_working,
+    embed_sucesso,
 )
+from formatters import fmt_time
 from garagem import GaragemResult, invocar_garagem
 from meeseeks import MeeseeksResult, invocar_meeseeks, start_dev_server
 
@@ -58,45 +61,48 @@ async def on_ready():
 # ─── helpers genéricos ───────────────────────────────────────────────────
 
 async def _heartbeat(message, render_fn, interval: int = 5):
-    """Edita `message` periodicamente até ser cancelada."""
+    """Edita `message` periodicamente com novo embed até ser cancelada."""
     start = time.monotonic()
     try:
         while True:
             await asyncio.sleep(interval)
             elapsed = time.monotonic() - start
             try:
-                await message.edit(content=render_fn(elapsed))
+                await message.edit(embed=render_fn(elapsed))
             except (discord.HTTPException, NotFound):
                 pass
     except asyncio.CancelledError:
         pass
 
 
-async def _try_edit(message, content: str):
+async def _try_edit(message, embed: discord.Embed):
     try:
-        await message.edit(content=content)
+        await message.edit(embed=embed)
     except (discord.HTTPException, NotFound):
         pass
 
 
-async def _send_long(interaction, content: str, filename: str):
-    """Envia content como mensagem se couber em 2000 chars, senão anexo."""
-    if len(content) <= 2000:
-        await interaction.followup.send(content)
+async def _send_embed(
+    interaction,
+    embed: discord.Embed,
+    overflow: str | None,
+    filename: str,
+):
+    """Envia embed. Se houver overflow (description estourou), anexa
+    o texto completo como arquivo no mesmo followup."""
+    if overflow is None:
+        await interaction.followup.send(embed=embed)
         return
     file = discord.File(
-        io.BytesIO(content.encode("utf-8")),
+        io.BytesIO(overflow.encode("utf-8")),
         filename=filename,
     )
-    await interaction.followup.send(
-        content="📄 Relatório longo, segue em anexo.",
-        file=file,
-    )
+    await interaction.followup.send(embed=embed, file=file)
 
 
 async def _run_with_heartbeat(
     status_msg,
-    render_fn: Callable[[float], str],
+    render_fn: Callable[[float], discord.Embed],
     coro: Awaitable[T],
 ) -> tuple[T, float]:
     """Roda `coro` enquanto um heartbeat reedita `status_msg` a cada
@@ -118,75 +124,51 @@ async def _run_with_heartbeat(
 async def _send_garagem_error(
     interaction, status_msg, g: GaragemResult, tempo: str
 ):
-    await _try_edit(status_msg, f"🔧 *A Garagem engasgou em `{tempo}`.*")
-    excerpt = g.raw[:1500] if g.raw else ""
-    await interaction.followup.send(
-        f"❌ Erro: `{g.error}`"
-        + (f"\n```\n{excerpt}\n```" if excerpt else "")
-    )
+    embed = embed_garagem_engasgou(tempo, g.error or "?", g.raw or "")
+    await _try_edit(status_msg, embed)
+    await interaction.followup.send(embed=embed)
 
 
 async def _send_garagem_pushback(
     interaction, status_msg, briefing: dict, tempo: str
 ):
-    await _try_edit(
-        status_msg,
-        f"🔧 *A Garagem empurrou de volta em `{tempo}`.*",
-    )
-    await interaction.followup.send(formatar_pushback(briefing))
+    embed = embed_garagem_pushback(briefing, tempo)
+    await _try_edit(status_msg, embed)
+    await interaction.followup.send(embed=embed)
 
 
 async def _send_garagem_no_slug(interaction, status_msg, tempo: str):
-    await _try_edit(
-        status_msg,
-        f"❌ *A Garagem entregou em `{tempo}` sem `slug`.*",
-    )
-    await interaction.followup.send(
-        "❌ Briefing válido mas sem `slug` — Garagem precisa corrigir o schema."
-    )
+    embed = embed_garagem_no_slug(tempo)
+    await _try_edit(status_msg, embed)
+    await interaction.followup.send(embed=embed)
 
 
 async def _send_meeseeks_failure(
     interaction, status_msg, m: MeeseeksResult, tempo: str
 ):
-    await _try_edit(
-        status_msg,
-        f"💀 *Existing is pain... travou em `{tempo}`.*",
-    )
-    await _send_long(
-        interaction,
-        formatar_falha_meeseeks(m, TARGET_PROJECT_PATH),
-        "meeseeks-fail.md",
-    )
+    embed, overflow = embed_meeseeks_falha(m, tempo, TARGET_PROJECT_PATH)
+    await _try_edit(status_msg, embed)
+    await _send_embed(interaction, embed, overflow, "meeseeks-fail.md")
 
 
 async def _send_dev_server_failure(
     interaction, status_msg, m: MeeseeksResult, error: Exception, tempo: str
 ):
-    await _try_edit(
-        status_msg,
-        f"✨ *Can do em `{tempo}`!* ⚠️ Mas o dev server falhou.",
+    embed, overflow = embed_dev_server_falhou(
+        m, error, tempo, TARGET_PROJECT_PATH
     )
-    await _send_long(
-        interaction,
-        f"{m.relatorio}\n\n⚠️ Falha ao subir `npm run dev`: `{error}`"
-        + formatar_cleanup(m, TARGET_PROJECT_PATH),
-        "meeseeks-report.md",
-    )
+    await _try_edit(status_msg, embed)
+    await _send_embed(interaction, embed, overflow, "meeseeks-report.md")
 
 
 async def _send_success(
     interaction, status_msg, m: MeeseeksResult, tempo: str, dev_port: int
 ):
-    await _try_edit(
-        status_msg,
-        f"✨ *Can do!* **Missão cumprida em `{tempo}`.**",
+    embed, overflow = embed_sucesso(
+        m, dev_port, tempo, TARGET_PROJECT_PATH
     )
-    await _send_long(
-        interaction,
-        formatar_sucesso(m, dev_port, TARGET_PROJECT_PATH),
-        "meeseeks-report.md",
-    )
+    await _try_edit(status_msg, embed)
+    await _send_embed(interaction, embed, overflow, "meeseeks-report.md")
 
 
 # ─── comando ─────────────────────────────────────────────────────────────
@@ -205,7 +187,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
 
     try:
         status_msg = await interaction.followup.send(
-            render_garagem_status(task, 0), wait=True
+            embed=embed_garagem_working(task, 0), wait=True
         )
     except NotFound:
         print(f"[warn] followup falhou após defer (task={task!r})")
@@ -214,7 +196,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     # ── Garagem ──
     g, g_elapsed = await _run_with_heartbeat(
         status_msg,
-        lambda elapsed: render_garagem_status(task, elapsed),
+        lambda elapsed: embed_garagem_working(task, elapsed),
         invocar_garagem(task, TARGET_PROJECT_PATH),
     )
     g_tempo = fmt_time(g_elapsed)
@@ -234,15 +216,11 @@ async def meeseeks(interaction: discord.Interaction, task: str):
         return await _send_garagem_no_slug(interaction, status_msg, g_tempo)
 
     # ── Meeseeks ──
-    await _try_edit(
-        status_msg,
-        f"🔧 *Garagem entregou em `{g_tempo}`.* 💨 *POOF!* "
-        f"**I'm Mr. Meeseeks, look at me!**",
-    )
+    await _try_edit(status_msg, embed_meeseeks_spawn(g_tempo))
 
     m, m_elapsed = await _run_with_heartbeat(
         status_msg,
-        lambda elapsed: render_meeseeks_status(slug, elapsed),
+        lambda elapsed: embed_meeseeks_working(slug, elapsed),
         invocar_meeseeks(parsed, TARGET_PROJECT_PATH),
     )
     m_tempo = fmt_time(m_elapsed)
