@@ -72,25 +72,32 @@ mindmap
       commit e64e7ac
         146 testes 91% cov
         integration test worktree
-    🟡 ATO V — Imersão visual D
-      uncommitted
-      🏷️ v0.4.0 iminente
+    ✅ ATO V — Imersão visual D 🏷️ v0.4.0
+      commit 45269d0
       embeds.py paleta 6 cores
       overflow elegante
       31 testes embeds 100%
-    ⬜ ATO VI — Calibração científica
-      cenários reais do PO catalogados
-      tests/scenarios/ estrutura
+    🟡 ATO VI — Observabilidade
+      🏷️ v0.5.0 iminente
+      logger/ SDK desacoplado
+        tabela projects
+        tabela runs — métricas completas por fase
+        GaragemEntry · MeeseeksEntry · DevServerEntry
+        SQLite · agnóstico ao core
+        29 testes 100%
+      integração ao core bot.py
+      dashboard front futuro
+    ⬜ ATO VII — Calibração científica
+      5 cenários reais PO/DEV catalogados
       runner headless via pipeline
-      métricas tempo + custo + turns
-      LLM as judge triagem
-      vereditos versionados
-    🔒 ATO VII — Polish
+      relatório de performance comparativo
+      depende Ato VI
+    🔒 ATO VIII — Polish
       Camada C Meeseeks nome único
       Camada E botões interativos
       Fase 3 Config dataclass
       Fase 4 DevServer class
-      depende Ato VI dar tração
+      depende Ato VII
 ```
 
 ---
@@ -109,9 +116,9 @@ gitGraph
    commit id: "fba05fc" tag: "v0.2.0"
    commit id: "c4cafbb"
    commit id: "e64e7ac" tag: "v0.3.0"
-   commit id: "(embeds, pré-tag)" type: HIGHLIGHT
-   commit id: "(scenarios catalog)" type: REVERSE
-   commit id: "(runner headless)" type: REVERSE
+   commit id: "45269d0" tag: "v0.4.0"
+   commit id: "(logger integrado)" type: HIGHLIGHT
+   commit id: "(calibração)" type: REVERSE
    commit id: "(polish acts)" type: REVERSE
 ```
 
@@ -125,11 +132,11 @@ gitGraph
 
 ```
 PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
-●━━●━━●━━●━━●━━🟡 ┄┄┄ ⬜ ┄┄┄ 🔒
-            ↑
-       você está aqui
-       Ato V — Camada D pronta
-       falta commit + tag v0.4.0
+●━━●━━●━━●━━●━━●━━🟡 ┄┄┄ ⬜ ┄┄┄ 🔒
+               ↑
+          você está aqui
+          Ato VI — logger SDK pronto
+          falta integrar ao core + tag v0.5.0
 ```
 
 ## Próximos ramos a brotar
