@@ -1,11 +1,11 @@
 import asyncio
-import json
 import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from config import CLAUDE_CLI, MEESEEKS_DEV_PORT, MEESEEKS_TIMEOUT_S
+from claude_runner import load_system_prompt, run_claude_p
+from config import MEESEEKS_DEV_PORT, MEESEEKS_TIMEOUT_S
 
 
 PROMPT_PATH = Path(__file__).parent / "skills" / "meeseeks.md"
@@ -59,15 +59,6 @@ def setup_worktree(
 
 
 # ─── invocação do meeseeks ───────────────────────────────────────────────
-
-def _carregar_system_prompt() -> str:
-    if not PROMPT_PATH.exists():
-        raise RuntimeError(f"Prompt do Meeseeks não encontrado em {PROMPT_PATH}")
-    texto = PROMPT_PATH.read_text(encoding="utf-8").strip()
-    if not texto:
-        raise RuntimeError(f"Prompt do Meeseeks está vazio: {PROMPT_PATH}")
-    return texto
-
 
 def _montar_user_prompt(briefing: dict, worktree: Path, branch: str) -> str:
     arquivos = briefing.get("arquivos_alvo") or []
@@ -136,81 +127,25 @@ async def invocar_meeseeks(
             error=f"falha ao preparar worktree: {e}",
         )
 
-    system_prompt = _carregar_system_prompt()
-    user_prompt = _montar_user_prompt(briefing, worktree, branch)
-    env = {**os.environ, "DISABLE_AUTOUPDATER": "1"}
+    r = await run_claude_p(
+        user_prompt=_montar_user_prompt(briefing, worktree, branch),
+        system_prompt=load_system_prompt(PROMPT_PATH),
+        cwd=worktree,
+        timeout=MEESEEKS_TIMEOUT_S,
+        extra_args=["--dangerously-skip-permissions"],
+    )
 
-    cmd = [
-        CLAUDE_CLI,
-        "-p", user_prompt,
-        "--output-format", "json",
-        "--append-system-prompt", system_prompt,
-        "--dangerously-skip-permissions",
-    ]
-
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=str(worktree),
-            env=env,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-    except FileNotFoundError:
+    if r.error:
         return MeeseeksResult(
             success=False,
             relatorio="",
             worktree=worktree,
             branch=branch,
-            error=(
-                f"binário do claude indisponível em {CLAUDE_CLI} — "
-                "pode estar atualizando, tenta de novo em alguns segundos"
-            ),
+            error=r.error,
+            raw=r.raw,
         )
 
-    try:
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(), timeout=MEESEEKS_TIMEOUT_S
-        )
-    except asyncio.TimeoutError:
-        try:
-            proc.kill()
-        except ProcessLookupError:
-            pass
-        return MeeseeksResult(
-            success=False,
-            relatorio="",
-            worktree=worktree,
-            branch=branch,
-            error=f"timeout ({MEESEEKS_TIMEOUT_S}s)",
-        )
-
-    stdout_text = stdout.decode("utf-8", errors="replace")
-    stderr_text = stderr.decode("utf-8", errors="replace")
-
-    if proc.returncode != 0:
-        return MeeseeksResult(
-            success=False,
-            relatorio="",
-            worktree=worktree,
-            branch=branch,
-            error=f"claude exit code {proc.returncode}",
-            raw=stderr_text[:2000],
-        )
-
-    try:
-        envelope = json.loads(stdout_text)
-        relatorio = envelope.get("result", "")
-    except json.JSONDecodeError as e:
-        return MeeseeksResult(
-            success=False,
-            relatorio="",
-            worktree=worktree,
-            branch=branch,
-            error=f"envelope JSON inválido: {e}",
-            raw=stdout_text[:2000],
-        )
-
+    relatorio = r.output
     commits = await _list_commits(worktree)
     success = bool(commits)
 
