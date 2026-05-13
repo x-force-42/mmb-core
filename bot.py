@@ -20,7 +20,11 @@ intents = discord.Intents.default()
 
 class MeeseeksBox(discord.Client):
     def __init__(self):
-        super().__init__(intents=intents)
+        activity = discord.Activity(
+            type=discord.ActivityType.watching,
+            name="Rick press the button",
+        )
+        super().__init__(intents=intents, activity=activity)
         self.tree = app_commands.CommandTree(self)
 
     async def setup_hook(self):
@@ -47,6 +51,21 @@ async def on_ready():
 def _fmt_time(seconds: float) -> str:
     s = int(seconds)
     return f"{s // 60:02d}:{s % 60:02d}"
+
+
+def _meeseeks_decay(seconds: float) -> str:
+    """Frase do heartbeat do Meeseeks que se deteriora com o tempo.
+    Casa com o lore: quanto mais tempo um Meeseeks vive, mais instável fica."""
+    m = seconds / 60
+    if m < 3:
+        return "🌀 Working on it!"
+    if m < 8:
+        return "💪 Caaaaan do!"
+    if m < 15:
+        return "😅 Oh boy, this is tricky..."
+    if m < 25:
+        return "😬 Existing is becoming pain, Rick..."
+    return "💀 Pleeease let me finish..."
 
 
 async def _heartbeat(message, render_fn, interval: int = 5):
@@ -91,7 +110,10 @@ def _formatar_pushback(p: dict) -> str:
         "_(sem dúvidas listadas, mas escopo marcado como pouco claro)_"
     ]
     bloco = "\n".join(f"- {d}" for d in duvidas)
-    return f"🛑 **A Garagem empurrou de volta.**\n\n**Dúvidas:**\n{bloco}"
+    return (
+        "🔧 **Não, Rick. Volta com isso melhor antes de eu acordar um Meeseeks.**\n\n"
+        f"{bloco}"
+    )
 
 
 def _formatar_cleanup(result: MeeseeksResult) -> str:
@@ -122,7 +144,7 @@ def _formatar_sucesso(result: MeeseeksResult, dev_port: int) -> str:
 
 
 def _formatar_falha_meeseeks(result: MeeseeksResult) -> str:
-    cabecalho = "❌ **Meeseeks falhou.**"
+    cabecalho = "💀 **Existing is pain, Rick.**"
     detalhe = f" `{result.error}`" if result.error else ""
     relatorio = (
         f"\n\n**Relatório parcial:**\n{result.relatorio}"
@@ -151,7 +173,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
 
     def render_garagem(elapsed: float) -> str:
         return (
-            f"🔧 *A Garagem trabalhando...* `{_fmt_time(elapsed)}`\n"
+            f"🔧 *A Garagem cavando isso aí…* `{_fmt_time(elapsed)}`\n"
             f"> {task}"
         )
 
@@ -172,7 +194,10 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     g_tempo = _fmt_time(time.monotonic() - g_start)
 
     if g_result.error:
-        await _try_edit(status_msg, f"❌ *A Garagem engasgou em `{g_tempo}`.*")
+        await _try_edit(
+            status_msg,
+            f"🔧 *A Garagem engasgou em `{g_tempo}`.*",
+        )
         excerpt = g_result.raw[:1500] if g_result.raw else ""
         await interaction.followup.send(
             f"❌ Erro: `{g_result.error}`"
@@ -185,7 +210,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     if not p.get("escopo_claro"):
         await _try_edit(
             status_msg,
-            f"🛑 *A Garagem empurrou de volta em `{g_tempo}`.*",
+            f"🔧 *A Garagem empurrou de volta em `{g_tempo}`.*",
         )
         await interaction.followup.send(_formatar_pushback(p))
         return
@@ -204,12 +229,13 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     # ── Meeseeks ──
     await _try_edit(
         status_msg,
-        f"✅ *Garagem entregou em `{g_tempo}`.* 🌀 Meeseeks acordando…",
+        f"🔧 *Garagem entregou em `{g_tempo}`.* 💨 *POOF!* "
+        f"**I'm Mr. Meeseeks, look at me!**",
     )
 
     def render_meeseeks(elapsed: float) -> str:
         return (
-            f"🌀 *Meeseeks executando…* `{_fmt_time(elapsed)}`\n"
+            f"{_meeseeks_decay(elapsed)} `{_fmt_time(elapsed)}`\n"
             f"> branch: `meeseeks/{slug}`"
         )
 
@@ -225,7 +251,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     if not m_result.success:
         await _try_edit(
             status_msg,
-            f"❌ *Meeseeks falhou em `{m_tempo}`.*",
+            f"💀 *Existing is pain... travou em `{m_tempo}`.*",
         )
         await _send_long(
             interaction,
@@ -240,7 +266,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     except Exception as e:
         await _try_edit(
             status_msg,
-            f"⚠️ *Meeseeks ok em `{m_tempo}`, mas dev server falhou.*",
+            f"✨ *Can do em `{m_tempo}`!* ⚠️ Mas o dev server falhou.",
         )
         await _send_long(
             interaction,
@@ -252,7 +278,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
 
     await _try_edit(
         status_msg,
-        f"✅ *Meeseeks entregou em `{m_tempo}`.*",
+        f"✨ *Can do!* **Missão cumprida em `{m_tempo}`.**",
     )
     await _send_long(
         interaction,
