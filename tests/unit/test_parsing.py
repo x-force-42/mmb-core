@@ -74,6 +74,13 @@ class TestFallbackBalancing:
         text = 'prose {"a": {"b": {"c": {"d": 1}}}}'
         assert extrair_json(text) == {"a": {"b": {"c": {"d": 1}}}}
 
+    def test_respects_escaped_quotes_when_in_fallback(self):
+        """Quando o fallback de balanceamento roda (json.loads direto
+        falhou por causa de prosa em volta), o varredor precisa
+        reconhecer escape de aspas pra não fechar string no meio."""
+        text = 'prefix {"msg": "diz: \\"oi\\""} suffix'
+        assert extrair_json(text) == {"msg": 'diz: "oi"'}
+
 
 class TestInvalidInput:
     def test_raises_when_no_opening_brace(self):

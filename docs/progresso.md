@@ -5,25 +5,57 @@ Mais recente no topo.
 
 ---
 
-## 2026-05-13
+## 2026-05-13 — `v0.3.0` guardrails de teste consolidados
 
-### Em teste — aguardando validação manual via Discord
+### Imersão temática (consolidada após smoke)
 
-- **Camada A (microcopy)** — voz Mr. Meeseeks nos pontos de transição.
-  Detalhes em `docs/plano-imersao.md`.
-- **Camada B (heartbeat com decay)** — heartbeat do Meeseeks varia
-  conforme tempo de execução. Tabela em `docs/plano-imersao.md`.
+- Camadas **A (microcopy)** e **B (heartbeat com decay)** validadas em
+  produção via Discord. Detalhes em `docs/plano-imersao.md`.
 
-Ambos implementados em `bot.py`. Bot precisa ser reiniciado pra
-carregar. Validar com uma `/meeseeks` simples e observar se o spawn,
-sucesso, falha e o heartbeat de tarefas longas refletem as mudanças.
+### Refactor modular (`v0.2.0`)
 
-### Próxima frente
+Pipeline ponta-a-ponta inalterado, mas separado em peças focadas:
 
-- **Camada de testes do workflow**: documentar protocolo de teste
-  ponta-a-ponta do pipeline Garagem → Meeseeks → dev server → cleanup.
-  Discussão em andamento — definir o "sisteminha mínimo pra testar"
-  antes de partir pra camada D.
+- `formatters.py` + `parsing.py` (funções puras, sem deps)
+- `claude_runner.py` (subprocess do `claude -p` unificado: env,
+  timeout, exit code, envelope JSON, FileNotFoundError)
+- `pipeline.py` — `run_pipeline()` headless devolve `PipelineResult`
+  com fase terminal entre as 6 possíveis
+- `bot.py` linear: `_run_with_heartbeat` + 6 funções `_send_*` por
+  fase, command handler de ~40 linhas
+
+### Guardrails de teste (`v0.3.0`)
+
+- pytest + pytest-asyncio + pytest-cov no `.venv`
+- **116 testes verdes em ~1.5s, 89% cobertura total**
+- Como rodar: `.venv/bin/pytest [--cov]`
+
+Distribuição:
+
+| Suite | Testes | Cobertura |
+|---|---|---|
+| `test_formatters.py` | 44 | 100% formatters.py |
+| `test_parsing.py` | 18 | 100% parsing.py |
+| `test_pipeline.py` | 12 | 100% pipeline.py |
+| `test_garagem.py` | 4 | 100% garagem.py |
+| `test_meeseeks.py` | 15 | 71% meeseeks.py |
+| `test_claude_runner.py` | 13 | 95% claude_runner.py |
+| `test_worktree.py` (integração) | 10 | git real em repo dummy |
+
+### Dívida explícita de teste
+
+- **Dev server** (`start_dev_server`, `stop_dev_server`, `_kill_port`):
+  cobertura requer integração com OS ou mocks pesados — adiada.
+- **`config.py`** validação em import-time: cobertura pediria Fase 3
+  do refactor (Config dataclass injetada) — adiada.
+- **`claude_runner.py:102-103`** (`ProcessLookupError` em `proc.kill`):
+  edge case raro, não vale.
+
+### Próxima frente — opções abertas
+
+- **Camada D** de imersão (embeds Discord + cores + avatar)
+- **Cenários de calibração** (catálogo manual dos 5 cenários reais
+  do PO/DEV — primeira fase do plano científico de calibração)
 
 ---
 

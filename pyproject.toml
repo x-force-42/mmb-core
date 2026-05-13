@@ -3,3 +3,21 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 addopts = "-ra --strict-markers"
 pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "tests/*",
+    ".venv/*",
+    "bot.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+show_missing = true
+skip_covered = false
