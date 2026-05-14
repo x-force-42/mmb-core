@@ -1,0 +1,1 @@
+Adicione uma função `welcome(name)` em `src/messages.js` que retorna a string `Welcome, ${name}!` — analogamente à `greet` já existente, mesmo padrão de implementação. Adicione, em `tests/messages.test.js`, um caso de teste que valide `welcome("Rick") === "Welcome, Rick!"`. Critério de pronto: a função `welcome` existe em `src/messages.js` e `npm test` retorna verde.
