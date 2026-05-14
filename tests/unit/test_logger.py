@@ -399,6 +399,180 @@ class TestListProjects:
         assert [p["slug"] for p in items] == ["alpha", "zeta"]
 
 
+class TestRegisterProject:
+    """Validação completa do cadastro novo (B1)."""
+
+    @pytest.fixture
+    def repo_path(self, tmp_path):
+        """Um diretório que parece um repo git."""
+        repo = tmp_path / "fake-repo"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        return repo
+
+    def test_happy_path_default_mode_pontual(self, log, repo_path):
+        proj = log.register_project(slug="meu-app", path=str(repo_path))
+        assert proj["slug"] == "meu-app"
+        assert proj["name"] == "meu-app"
+        assert proj["mode"] == "pontual"
+        assert proj["active"] == 1
+        assert proj["path"] == str(repo_path)
+
+    def test_name_default_eh_slug(self, log, repo_path):
+        proj = log.register_project(slug="x", path=str(repo_path))
+        assert proj["name"] == "x"
+
+    def test_aceita_mode_construtor(self, log, repo_path):
+        proj = log.register_project(
+            slug="ctor", path=str(repo_path), mode="construtor"
+        )
+        assert proj["mode"] == "construtor"
+
+    def test_rejeita_mode_invalido(self, log, repo_path):
+        from logger import ModoInvalido
+        with pytest.raises(ModoInvalido):
+            log.register_project(slug="x", path=str(repo_path), mode="bizarro")
+
+    def test_rejeita_slug_invalido_uppercase(self, log, repo_path):
+        from logger import SlugInvalido
+        with pytest.raises(SlugInvalido):
+            log.register_project(slug="MeuApp", path=str(repo_path))
+
+    def test_rejeita_slug_invalido_underscore(self, log, repo_path):
+        from logger import SlugInvalido
+        with pytest.raises(SlugInvalido):
+            log.register_project(slug="meu_app", path=str(repo_path))
+
+    def test_rejeita_slug_comecando_com_digito(self, log, repo_path):
+        from logger import SlugInvalido
+        with pytest.raises(SlugInvalido):
+            log.register_project(slug="1-projeto", path=str(repo_path))
+
+    def test_rejeita_slug_muito_longo(self, log, repo_path):
+        from logger import SlugInvalido
+        with pytest.raises(SlugInvalido):
+            log.register_project(slug="a" * 31, path=str(repo_path))
+
+    def test_aceita_slug_no_limite(self, log, repo_path):
+        proj = log.register_project(slug="a" * 30, path=str(repo_path))
+        assert proj["slug"] == "a" * 30
+
+    def test_rejeita_path_inexistente(self, log, tmp_path):
+        from logger import PathInexistente
+        with pytest.raises(PathInexistente):
+            log.register_project(
+                slug="x", path=str(tmp_path / "nao-existe")
+            )
+
+    def test_rejeita_path_que_eh_arquivo(self, log, tmp_path):
+        from logger import PathInexistente
+        f = tmp_path / "arquivo.txt"
+        f.write_text("hi")
+        with pytest.raises(PathInexistente):
+            log.register_project(slug="x", path=str(f))
+
+    def test_rejeita_path_sem_git(self, log, tmp_path):
+        from logger import PathNaoEhRepo
+        d = tmp_path / "nao-repo"
+        d.mkdir()
+        with pytest.raises(PathNaoEhRepo):
+            log.register_project(slug="x", path=str(d))
+
+    def test_rejeita_slug_duplicado_ativo(self, log, repo_path):
+        from logger import SlugDuplicado
+        log.register_project(slug="dup", path=str(repo_path))
+        with pytest.raises(SlugDuplicado):
+            log.register_project(slug="dup", path=str(repo_path))
+
+    def test_rejeita_slug_duplicado_inativo(self, log, repo_path):
+        """Slug é único globalmente — reativação não é parte da B1."""
+        from logger import SlugDuplicado
+        log.register_project(slug="dup", path=str(repo_path))
+        log.deactivate_project("dup")
+        with pytest.raises(SlugDuplicado):
+            log.register_project(slug="dup", path=str(repo_path))
+
+
+class TestListProjectsActiveFilter:
+    @pytest.fixture
+    def repo_path(self, tmp_path):
+        repo = tmp_path / "r"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        return repo
+
+    def test_exclui_inativos_por_default(self, log, repo_path):
+        log.register_project(slug="a", path=str(repo_path))
+        log.register_project(slug="b", path=str(repo_path))
+        log.deactivate_project("a")
+        items = log.list_projects()
+        assert [p["slug"] for p in items] == ["b"]
+
+    def test_include_inactive_traz_tudo(self, log, repo_path):
+        log.register_project(slug="a", path=str(repo_path))
+        log.register_project(slug="b", path=str(repo_path))
+        log.deactivate_project("a")
+        items = log.list_projects(include_inactive=True)
+        assert [p["slug"] for p in items] == ["a", "b"]
+
+
+class TestGetProjectBySlug:
+    def test_retorna_dict_quando_existe(self, log):
+        log.ensure_project(slug="x", name="X", path="/x")
+        proj = log.get_project_by_slug("x")
+        assert proj["slug"] == "x"
+
+    def test_retorna_none_quando_nao_existe(self, log):
+        assert log.get_project_by_slug("nope") is None
+
+    def test_retorna_mesmo_inativo(self, log, tmp_path):
+        repo = tmp_path / "r"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        log.register_project(slug="x", path=str(repo))
+        log.deactivate_project("x")
+        # get_project_by_slug não filtra por active — quem consome decide.
+        proj = log.get_project_by_slug("x")
+        assert proj is not None
+        assert proj["active"] == 0
+
+
+class TestDeactivateProject:
+    @pytest.fixture
+    def repo_path(self, tmp_path):
+        repo = tmp_path / "r"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        return repo
+
+    def test_seta_active_zero(self, log, repo_path):
+        log.register_project(slug="x", path=str(repo_path))
+        assert log.deactivate_project("x") is True
+        proj = log.get_project_by_slug("x")
+        assert proj["active"] == 0
+
+    def test_idempotente_retorna_false_segunda_vez(self, log, repo_path):
+        log.register_project(slug="x", path=str(repo_path))
+        log.deactivate_project("x")
+        assert log.deactivate_project("x") is False
+
+    def test_retorna_false_para_slug_inexistente(self, log):
+        assert log.deactivate_project("fantasma") is False
+
+
+class TestEnsureProjectAindaFunciona:
+    """Não-regressão: o seed migracional usa ensure_project."""
+
+    def test_ainda_eh_upsert_idempotente(self, log):
+        a = log.ensure_project(slug="s", name="S", path="/s")
+        b = log.ensure_project(slug="s", name="S2", path="/s2")
+        assert a == b
+
+    def test_nao_valida_path(self, log):
+        # ensure_project é compat — não exige .git/, não checa existência.
+        log.ensure_project(slug="x", name="X", path="/nao/existe")
+
+
 class TestSchemaMigration:
     """Garante que get_connection promove DBs pré-B1 sem dor."""
 
