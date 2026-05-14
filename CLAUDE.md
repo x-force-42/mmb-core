@@ -90,65 +90,21 @@ de JSON, dois modos de falha — `garagem.py` distingue no campo `error`.
 
 ## Camada agêntica — onde ler antes de operar
 
-Este projeto opera com workflow estruturado de orquestrador + agentes
-delegados em worktrees paralelas. Dependendo do seu papel nesta
-sessão, leia o doc certo:
+Este projeto faz parte do ecossistema MMB, que opera com workflow
+estruturado em três papéis cujos perfis vivem no andaime cross-repo
+em `/MMB/.tooling/profiles/`. Dependendo do seu papel nesta sessão,
+leia o doc certo:
 
-- **Você é uma sessão Claude na raiz do MMB** (orquestrador), e o
-  Rick está conversando contigo sobre planejar, discutir, delegar,
-  revisar entregas, atualizar docs? → leia
-  [`docs/ORQUESTRADOR.md`](docs/ORQUESTRADOR.md). Ele descreve
-  o ciclo das 7 fases, princípios implícitos, anti-padrões.
-- **Você é uma sessão Claude em uma worktree** (agente delegado),
-  iniciada via `scripts/task-start.sh <id>`? → leia
-  [`docs/tasks/PROTOCOLO.md`](docs/tasks/PROTOCOLO.md) primeiro,
-  depois o brief da sua task em `docs/tasks/<id>-<slug>.md`.
-
-## Operação como agente de task (bootstrap)
-
-Se você é uma sessão Claude recém-iniciada neste repo e o Rick ainda
-não te disse o que fazer, **siga este protocolo antes de qualquer
-outra coisa**:
-
-1. **Verifique se está numa worktree de task, não na raiz do repo.**
-   Rode `git rev-parse --show-toplevel` e `git branch --show-current`.
-   - Se você está na raiz do MMB (`/home/eliezer/llab/mr-meeseeks-box`)
-     e na branch `master`: avise o Rick e ofereça rodar
-     `scripts/task-start.sh <id>` pra criar a worktree antes de começar.
-   - Se você está numa worktree (`.../.worktrees/<id>-<slug>`) e na
-     branch `task/<id>-<slug>`: ok, prossiga.
-
-2. **Liste as tasks abertas**. Leia `docs/tasks/INDEX.md` — é o
-   registro canônico. Identifique as marcadas com 🎯 (prontas pra
-   delegar) e, se já está numa worktree, qual delas casa com o slug
-   da branch atual.
-
-3. **Pergunte ao Rick** via `AskUserQuestion` qual task ele quer que
-   você atue (ou se prefere uma conversa exploratória sem entrar em
-   task). Se já está numa worktree, sugira como primeira opção a
-   task da branch atual.
-
-4. **Quando ele escolher, leia o brief específico**
-   (`docs/tasks/<id>-<slug>.md`). Trate o brief como autoritativo —
-   ele tem intenção, escopo (dentro/fora), critério de pronto,
-   decisões em aberto e conflitos potenciais com outras tasks.
-
-5. **Antes de qualquer edit**, releia `docs/tasks/PROTOCOLO.md`,
-   especialmente o pré-flight de 4 invariantes. Eles existem
-   porque agentes paralelos só convivem se cada um permanecer
-   isolado no seu worktree+branch.
-
-6. **Confirme decisões em aberto** do brief com o Rick antes de
-   implementar. Não chute.
-
-7. **Trabalhe**. Commits pequenos, mensagens no estilo do `git log`
-   existente, hooks nunca pulados, `master` nunca recebe push
-   direto. Você abre PR — só o Rick mergeia.
-
-8. **Ao terminar**, relate em formato curto: o que foi feito, o que
-   ficou aberto, decisões tomadas no caminho.
-
-Se nada disso se aplica (Rick está fazendo pergunta exploratória,
-debug, ou trabalho fora de uma task formal), apenas responda o que
-foi perguntado. O bootstrap é pra quando você é um **agente
-delegado** pra entregar uma task específica.
+- **Você é uma sessão Claude na raiz `/MMB/`** (Orquestrador Mestre),
+  conversando com Rick sobre planejar intenções cross-repo, decompor
+  em tarefas, materializar como issues no GitHub? → leia
+  [`/MMB/.tooling/profiles/master.md`](/MMB/.tooling/profiles/master.md).
+- **Você é uma sessão Claude na raiz deste repo** (Orquestrador de
+  Projeto do `mmb-core`), recebendo briefing do Mestre, abrindo
+  sub-issues, spawnando atômicos? → leia
+  [`/MMB/.tooling/profiles/project-orchestrator.md`](/MMB/.tooling/profiles/project-orchestrator.md).
+- **Você é uma sessão Claude numa worktree de task**
+  (`.worktrees/<id>-<slug>`), spawnada via
+  `/MMB/.tooling/bin/task-start.sh mmb-core <id>`? → leia
+  [`/MMB/.tooling/profiles/atomic-agent.md`](/MMB/.tooling/profiles/atomic-agent.md)
+  e busque sua sub-issue no GitHub (ela é seu prompt).

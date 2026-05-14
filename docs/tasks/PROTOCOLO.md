@@ -1,3 +1,8 @@
+> **⚠️ Arquivado (método v2).** O método atual vive em
+> `/MMB/.tooling/profiles/` — em particular,
+> [`atomic-agent.md`](/MMB/.tooling/profiles/atomic-agent.md) substitui
+> este protocolo. Mantido como referência histórica.
+
 # Protocolo de operação para agentes
 
 Este documento descreve como uma sessão do Claude CLI (ou outro
@@ -30,7 +35,7 @@ git rev-parse --git-dir
 ```
 
 Se o toplevel for `/home/eliezer/llab/mr-meeseeks-box`, você está na
-raiz. **Pare.** Peça ao Rick para rodar `scripts/task-start.sh <id>`
+raiz. **Pare.** Peça ao Rick para rodar `/MMB/.tooling/bin/task-start.sh mmb-core <id>`
 e reiniciar a sessão na worktree criada.
 
 Worktree legítima tem toplevel em
@@ -130,4 +135,4 @@ git worktree remove --force .worktrees/<id>-<slug>
 git branch -d task/<id>-<slug>
 ```
 
-`scripts/task-end.sh <id>` automatiza isso quando você quiser.
+`/MMB/.tooling/bin/task-end.sh mmb-core <id>` automatiza isso quando você quiser.

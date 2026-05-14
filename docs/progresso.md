@@ -60,7 +60,8 @@ antes de codar".
 
 Worktrees pendentes cleanup (não bloqueia nada):
 `task/C1`, `task/C2`, `task/A1`, `task/E1`, `task/B1`. Rodar
-`scripts/task-end.sh` em sequência quando der vontade.
+`/MMB/.tooling/bin/task-end.sh mmb-core <id>` em sequência quando
+der vontade.
 
 ---
 
@@ -195,7 +196,8 @@ delegar lá.
 Worktrees pendentes cleanup:
 `task/C1-retry-transiente`, `task/C2-cenarios-e2e-erro`,
 `task/A1-aquario-mono`, `task/E1-api-cockpit`. Rodar
-`scripts/task-end.sh` quando quiser limpar (não bloqueia nada).
+`/MMB/.tooling/bin/task-end.sh mmb-core <id>` quando quiser limpar
+(não bloqueia nada).
 
 ---
 
@@ -332,7 +334,7 @@ do PipelineResult). 197 testes unit/integration verdes.
 
 - Branches sobrando: `task/C1-retry-transiente` e
   `task/C2-cenarios-e2e-erro`. Worktrees idem. Cleanup via
-  `scripts/task-end.sh C1 C2`.
+  `/MMB/.tooling/bin/task-end.sh mmb-core C1` (idem C2).
 - Próximo lote 🎯: A1 (Presença, sequencial, toca `bot.py`)
   e B1 (Plataforma, espera A1 mergeie).
 
