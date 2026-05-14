@@ -26,7 +26,13 @@ from config import (
     MMB_DB_PATH,
     TARGET_PROJECT_PATH,
 )
-from logger import DevServerEntry, GaragemEntry, MeeseeksEntry, RunLogger
+from logger import (
+    DevServerEntry,
+    GaragemEntry,
+    MeeseeksEntry,
+    ProjectError,
+    RunLogger,
+)
 from embeds import (
     embed_dev_server_falhou,
     embed_garagem_engasgou,
@@ -36,6 +42,9 @@ from embeds import (
     embed_meeseeks_falha,
     embed_meeseeks_spawn,
     embed_meeseeks_working,
+    embed_project_erro,
+    embed_project_list,
+    embed_project_ok,
     embed_sucesso,
 )
 from formatters import fmt_time
@@ -371,7 +380,88 @@ def _meeseeks_entry(
     )
 
 
-# ─── comando ─────────────────────────────────────────────────────────────
+# ─── /project ────────────────────────────────────────────────────────────
+# Fachada fina sobre a API do RunLogger. Toda validação vive no logger;
+# aqui só traduzimos ProjectError em embed e enviamos.
+
+project_group = app_commands.Group(
+    name="project", description="Gerenciar projetos do MMB"
+)
+
+
+@project_group.command(name="add", description="Cadastra um novo projeto")
+@app_commands.describe(
+    path="Caminho absoluto do repo git (precisa conter .git/)",
+    slug="Identificador curto kebab-case (≤30 chars)",
+    name="Nome amigável (default = slug)",
+    mode="Modo de operação (default = pontual)",
+)
+@app_commands.choices(mode=[
+    app_commands.Choice(name="pontual", value="pontual"),
+    app_commands.Choice(name="construtor", value="construtor"),
+])
+async def project_add(
+    interaction: discord.Interaction,
+    path: str,
+    slug: str,
+    name: str = "",
+    mode: app_commands.Choice[str] | None = None,
+):
+    try:
+        proj = _logger.register_project(
+            slug=slug,
+            path=path,
+            name=name or None,
+            mode=mode.value if mode else "pontual",
+        )
+    except ProjectError as e:
+        await interaction.response.send_message(
+            embed=embed_project_erro(
+                "📂 Projeto não cadastrado", str(e)
+            ),
+            ephemeral=True,
+        )
+        return
+    await interaction.response.send_message(
+        embed=embed_project_ok(
+            "📂 Projeto cadastrado",
+            f"`{proj['slug']}` (`{proj['mode']}`) → `{proj['path']}`",
+        )
+    )
+
+
+@project_group.command(name="list", description="Lista os projetos ativos")
+async def project_list(interaction: discord.Interaction):
+    projetos = _logger.list_projects()
+    await interaction.response.send_message(embed=embed_project_list(projetos))
+
+
+@project_group.command(name="remove", description="Desativa um projeto (soft delete)")
+@app_commands.describe(slug="Slug do projeto a desativar")
+async def project_remove(interaction: discord.Interaction, slug: str):
+    ok = _logger.deactivate_project(slug)
+    if ok:
+        await interaction.response.send_message(
+            embed=embed_project_ok(
+                "📂 Projeto desativado",
+                f"`{slug}` não aparece mais em `/project list` "
+                f"nem no autocomplete do `/meeseeks`. Histórico preservado.",
+            )
+        )
+    else:
+        await interaction.response.send_message(
+            embed=embed_project_erro(
+                "📂 Nada a desativar",
+                f"Slug `{slug}` não está ativo (não existe ou já estava inativo).",
+            ),
+            ephemeral=True,
+        )
+
+
+client.tree.add_command(project_group)
+
+
+# ─── /meeseeks ───────────────────────────────────────────────────────────
 
 @client.tree.command(
     name="meeseeks",
