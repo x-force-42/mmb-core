@@ -5,6 +5,40 @@ Mais recente no topo.
 
 ---
 
+## 2026-05-14 — primeira task entregue por agente externo
+
+### C1 fechado (commit `b530cca`)
+
+Validação ponta-a-ponta do sistema de delegação multi-agente:
+
+- Rick lançou `scripts/task-start.sh C1` → worktree e branch criadas.
+- Agente Claude em sessão separada consumiu `docs/tasks/C1-retry-transiente.md`
+  como autoridade do escopo, sem briefing adicional.
+- Entrega respeitou o brief integralmente: só `claude_runner.py` +
+  seu teste, decisão em aberto (delays) ficou no default sugerido,
+  zero pulo de hook, zero scope creep.
+- Bônus de qualidade: agente extraiu `_is_transient_autoupdate` como
+  helper testável separado de `_run_claude_p_once`, casando com o
+  padrão "parsing puro fora do IO" que aplicamos no `_parse_shortstat`
+  durante o Ato VII.
+- 197 testes verdes (192 anteriores + 5 novos cobrindo: recovery
+  via FileNotFoundError, recovery via exit 2, exaustão de retries,
+  não-retry em exit 1 genérico, não-retry em timeout).
+
+### Implicação prática
+
+O race do auto-update do CLI (documentado em `CLAUDE.md` e
+manifesto duas vezes durante o desenvolvimento do E2E) deixa de
+afetar produção e suite E2E. 2 retries com backoff 1.5s+3s cobrem
+a janela transiente típica.
+
+### Estado do sistema de delegação
+
+Funciona como previsto. `docs/tasks/PROTOCOLO.md` foi seguido sem
+intervenção. C2 está em curso por outro agente em paralelo.
+
+---
+
 ## 2026-05-13 — virada de eixo · `v0.5.0` candidato
 
 ### Atos VI + VII consolidados

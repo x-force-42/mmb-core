@@ -22,7 +22,6 @@ o que quer fazer? Siga:
 |---|---|---|---|---|
 | **A1** | Aquário mono-projeto | A — Presença | 🎯 pronto | [`A1-aquario-mono.md`](A1-aquario-mono.md) |
 | **B1** | Projetos como cidadão 1ª classe | B — Plataforma | 🎯 pronto | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) |
-| **C1** | Retry transiente no claude_runner | C — Robustez | 🎯 pronto | [`C1-retry-transiente.md`](C1-retry-transiente.md) |
 | **C2** | Cenários E2E de erro | C — Robustez | 🎯 pronto | [`C2-cenarios-e2e-erro.md`](C2-cenarios-e2e-erro.md) |
 | A2 | Identidade visual (Camada C+E) | A — Presença | ⬜ não iniciado | (sem brief) |
 | A3 | Aquário multi-projeto | A — Presença | 🔒 bloqueado por B1 | (sem brief) |
@@ -30,20 +29,20 @@ o que quer fazer? Siga:
 | B3 | Modelo por fase (Opus Garagem, Sonnet Meeseeks) | B — Plataforma | ⬜ não iniciado | (sem brief) |
 | C3 | Cenário E2E anti-escopo | C — Robustez | ⬜ não iniciado | (sem brief) |
 | C4 | Calibração com cenários reais | C — Robustez | 🔒 bloqueado por C2 | (sem brief) |
+| ~~C1~~ | Retry transiente no claude_runner | C — Robustez | ✅ fechado em `b530cca` | [`C1-retry-transiente.md`](C1-retry-transiente.md) |
 
 ## Matriz de paralelismo
 
 Quais tasks podem rodar simultaneamente sem conflito de merge?
 
-| | A1 | B1 | C1 | C2 |
-|---|---|---|---|---|
-| **A1** | — | ⚠️ conflito em `bot.py` | ✅ ok | ✅ ok |
-| **B1** | ⚠️ conflito em `bot.py` | — | ✅ ok | ✅ ok |
-| **C1** | ✅ ok | ✅ ok | — | ✅ ok |
-| **C2** | ✅ ok | ✅ ok | ✅ ok | — |
+| | A1 | B1 | C2 |
+|---|---|---|---|
+| **A1** | — | ⚠️ conflito em `bot.py` | ✅ ok |
+| **B1** | ⚠️ conflito em `bot.py` | — | ✅ ok |
+| **C2** | ✅ ok | ✅ ok | — |
 
-**Lance C1 e C2 hoje em paralelo.** A1 sequencial depois. B1 só
-depois que A1 mergear.
+Próximo lote depois de C2 fechar: **A1** isolado (toca `bot.py`),
+depois **B1** (também toca `bot.py`, sequencial após A1).
 
 ## Como criar uma task nova
 

@@ -39,16 +39,19 @@ Obsidian e similares.
 
 Pipeline ponta-a-ponta funcional contra **um único** `TARGET_PROJECT_PATH`.
 Observabilidade gravada em SQLite com 4 queries prontas via Datasette.
-E2E reproduzível com fixture isolado, 2 cenários verdes.
+E2E reproduzível com fixture isolado, 2 cenários verdes. Sistema de
+delegação multi-agente operacional — primeira task (C1, retry
+transiente) entregue por agente externo em ciclo completo.
 
-Próximo movimento: pular pra **plataforma multi-projeto + presença ao
-vivo**, com qualidade rodando em background. Três trilhas em paralelo.
+Próximo movimento: continuar a trilha C (C2 em curso por agente
+paralelo), depois abrir A1 (Presença) sequencial — Plataforma (B1)
+fica pra depois que A1 mergeie.
 
 ```
 PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
-●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ ━ ━ →
-                ↑
-        v0.5.0 (a taggar)
+●━●━●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ →
+                  ↑
+        C1 fechado · C2 em curso · v0.5.0+ candidato
 ```
 
 ---
@@ -97,6 +100,8 @@ gitGraph
    commit id: "046abdb"
    commit id: "086c002"
    commit id: "d279e6c" tag: "v0.5.0?"
+   commit id: "ee7fe3f"
+   commit id: "b530cca" type: HIGHLIGHT
 ```
 
 > A tag `v0.5.0` ainda não foi cravada. Pronta quando você quiser.
@@ -142,10 +147,12 @@ mindmap
         Config via env por fase
         Independente de B1/B2 · pode ir junto
     Trilha C · Robustez
-      🎯 C1 Retry transiente no runner
-        FileNotFound + exit 2 cli ausente
-        Backoff curto · 1-2 retries
-        Mata o race do auto-update
+      ✅ C1 Retry transiente no runner
+        commit b530cca
+        FileNotFound + exit 2 detectados
+        2 retries com backoff 1.5s+3s
+        _is_transient_autoupdate isolado
+        5 testes novos · 197 verdes
       🎯 C2 Cenários E2E de erro
         Pushback vague_prompt
         no_slug forçado
@@ -164,6 +171,7 @@ mindmap
 ```mermaid
 flowchart LR
   classDef ready  fill:#cfa,stroke:#393,stroke-width:2px
+  classDef done   fill:#9d9,stroke:#171,stroke-width:2px,color:#000
   classDef todo   fill:#eee,stroke:#999
   classDef locked fill:#ccc,stroke:#666,stroke-dasharray:4
 
@@ -175,7 +183,7 @@ flowchart LR
   B2[⬜ B2 Garagem contexto]:::todo
   B3[⬜ B3 Modelo por fase]:::todo
 
-  C1[🎯 C1 Retry transiente]:::ready
+  C1[✅ C1 Retry transiente]:::done
   C2[🎯 C2 E2E erro]:::ready
   C3[⬜ C3 E2E anti-escopo]:::todo
   C4[⬜ C4 Calibração real]:::todo
