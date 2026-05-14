@@ -148,6 +148,8 @@ class ProjectItem(BaseModel):
             "path": "/home/eliezer/vnt/ASUS/jogo",
             "repo_url": None,
             "created_at": "2026-05-13T20:10:00+00:00",
+            "active": 1,
+            "mode": "pontual",
         }
     })
 
@@ -157,6 +159,8 @@ class ProjectItem(BaseModel):
     path: str
     repo_url: str | None
     created_at: str
+    active: int
+    mode: str
 
 
 class ProjectListResponse(BaseModel):

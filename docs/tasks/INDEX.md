@@ -20,7 +20,7 @@ o que quer fazer? Siga:
 
 | ID | Título | Trilha | Status | Brief |
 |---|---|---|---|---|
-| **B1** | Multi-projeto pontual (cadastro + lookup runtime + campo `mode`) | B — Plataforma | 🎯 pronto | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) |
+| **B1** | Multi-projeto pontual (cadastro + lookup runtime + campo `mode`) | B — Plataforma | 🚧 em PR | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) + [`B1-plano.md`](B1-plano.md) |
 | A2 | Identidade visual (Camada C+E) | A — Presença | ⬜ não iniciado | (sem brief) |
 | A3 | Aquário multi-projeto | A — Presença | 🔒 bloqueado por B1 | (sem brief) |
 | B2 | Sessão Claude persistente da Garagem + compactação + modelo por modo | B — Plataforma | 🔒 bloqueado por B3 | (sem brief — gerar quando turno chegar) |
