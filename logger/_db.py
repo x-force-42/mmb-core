@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS projects (
     name       TEXT NOT NULL,
     path       TEXT NOT NULL,
     repo_url   TEXT,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    active     INTEGER NOT NULL DEFAULT 1,
+    mode       TEXT NOT NULL DEFAULT 'pontual'
 );
 
 CREATE TABLE IF NOT EXISTS runs (
@@ -67,5 +69,16 @@ def get_connection(path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
+    # Migrações idempotentes pra DBs criados antes da B1.
+    # `executescript` acima já cria tabelas novas com as colunas certas;
+    # estes ALTERs só importam pra bancos pré-existentes.
+    for ddl in (
+        "ALTER TABLE projects ADD COLUMN active INTEGER NOT NULL DEFAULT 1",
+        "ALTER TABLE projects ADD COLUMN mode TEXT NOT NULL DEFAULT 'pontual'",
+    ):
+        try:
+            conn.execute(ddl)
+        except sqlite3.OperationalError:
+            pass
     conn.commit()
     return conn

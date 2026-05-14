@@ -4,6 +4,7 @@ Usa banco em memória (:memory:) — zero I/O, isolado por teste.
 """
 
 import json
+import sqlite3
 import pytest
 
 from logger import (
@@ -12,6 +13,7 @@ from logger import (
     MeeseeksEntry,
     RunLogger,
 )
+from logger._db import get_connection
 
 
 @pytest.fixture
@@ -395,6 +397,46 @@ class TestListProjects:
         log.ensure_project(slug="alpha", name="A", path="/a")
         items = log.list_projects()
         assert [p["slug"] for p in items] == ["alpha", "zeta"]
+
+
+class TestSchemaMigration:
+    """Garante que get_connection promove DBs pré-B1 sem dor."""
+
+    def test_alter_idempotente_em_db_legado(self, tmp_path):
+        # Simula um DB criado antes da B1: schema sem active/mode.
+        db_path = tmp_path / "legacy.db"
+        conn = sqlite3.connect(db_path)
+        conn.executescript(
+            """
+            CREATE TABLE projects (
+                id         TEXT PRIMARY KEY,
+                slug       TEXT UNIQUE NOT NULL,
+                name       TEXT NOT NULL,
+                path       TEXT NOT NULL,
+                repo_url   TEXT,
+                created_at TEXT NOT NULL
+            );
+            """
+        )
+        conn.execute(
+            "INSERT INTO projects (id, slug, name, path, created_at)"
+            " VALUES ('id1', 'legado', 'Legado', '/x', '2026-01-01T00:00:00')"
+        )
+        conn.commit()
+        conn.close()
+
+        # Reabrir via get_connection roda a migração.
+        conn = get_connection(db_path)
+        row = conn.execute(
+            "SELECT slug, active, mode FROM projects WHERE id = 'id1'"
+        ).fetchone()
+        assert row["slug"] == "legado"
+        assert row["active"] == 1
+        assert row["mode"] == "pontual"
+
+        # Idempotência — reabrir de novo não explode.
+        conn.close()
+        get_connection(db_path)
 
 
 class TestUpdateRunReview:
