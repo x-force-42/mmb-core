@@ -7,7 +7,7 @@ A1
 A — Presença
 
 ## Status
-🎯 pronto pra delegar
+🎯 pronto pra delegar — todas as decisões fechadas em 2026-05-14
 
 ## Intenção
 
@@ -37,10 +37,15 @@ fica pra A3 quando B1 estiver pronto.
   - `event freaking_out` quando o decay cruza o limite de 15min
   - `event died_happy` em sucesso
   - `event died_defeated` em `meeseeks_failure`
-- Config via `.env`: `AQUARIUM_WS_URL`, `AQUARIUM_TOKEN`,
-  `AQUARIUM_ENABLED` (default `false` pra não quebrar dev local).
-- Heartbeat (ping a cada 30s, drop após 10s sem pong) com reconnect
-  com backoff exponencial 1s→2s→4s→8s→16s, max 30s.
+- Config via `.env`: `AQUARIUM_WS_URL` (default
+  `ws://localhost:8080/ws`) e `AQUARIUM_ENABLED` (default `false`,
+  pra não obrigar o aquário estar de pé em todo dev local nem nos
+  E2E). Não há auth — é tudo loopback.
+- Heartbeat: WS native `ping`/`pong`. A biblioteca `websockets`
+  cuida via `ping_interval`/`ping_timeout` — não precisa
+  protocolo app-level.
+- Reconnect com backoff exponencial 1s → 2s → 5s → 10s → 30s,
+  jitter de ±20%, cap em 30s. Sem limite de tentativas.
 - Testes unitários sobre o mapeamento de fase → mensagem (sem
   conexão real).
 
@@ -51,8 +56,9 @@ fica pra A3 quando B1 estiver pronto.
   é A2.
 - O serviço aquário em si. Não conhecemos detalhes do servidor
   além do protocolo recebido.
-- `event recovered` — não há fonte natural no MMB hoje. Fica não
-  utilizado (a decisão é do Rick, vide "Decisões em aberto").
+- `event recovered` — não há fonte natural no MMB hoje. Meeseeks
+  só decresce até morrer. Fica fora desta versão (acordo fechado
+  com o time do aquário; vide "Decisões fechadas").
 
 ## Critério de pronto
 
@@ -75,9 +81,11 @@ fica pra A3 quando B1 estiver pronto.
 7. `pytest tests/unit/test_aquario_*.py` verde, com testes que
    exercitam o mapeamento sem precisar de servidor real.
 8. Bot continua funcional com `AQUARIUM_ENABLED=false` (default).
-9. **Conexão real validada**: combinar com o Rick uma URL de
-   teste do aquário e rodar um `/meeseeks` smoke confirmando que
-   o Meeseeks aparece, decai, e morre na tela.
+9. **Conexão real validada localmente**: com o servidor do
+   aquário rodando em `ws://localhost:8080/ws` e o front aberto
+   no browser, um `/meeseeks` smoke faz o Meeseeks aparecer,
+   decair, e morrer na tela. Vide seção "Como ver na prática"
+   abaixo.
 
 ## Contexto técnico
 
@@ -104,69 +112,113 @@ fica pra A3 quando B1 estiver pronto.
 - Dataclasses pra modelos de mensagem.
 - Testes em `tests/unit/test_aquario_*.py` ou subpasta dedicada.
 
-### Spec do aquário (resumida do briefing recebido)
+### Spec do aquário (fechada com o time deles)
 
-WebSocket one-way (push do MMB). 3 tipos de mensagem JSON:
+WebSocket one-way (push do MMB). Endpoint local `ws://localhost:8080/ws`,
+sem TLS, sem auth, sem tenant — instância única do MMB ↔ instância
+única do aquário, lado a lado em dev.
 
-```json
-// snapshot — enviado no connect
+3 tipos de mensagem JSON, discriminadas por `type`:
+
+```jsonc
+// snapshot — estado completo no connect (também reusável como reset)
 {
   "type": "snapshot",
   "meeseeks": [
-    {"id": "...", "health": 0.7, "isFreakingOut": false,
-     "name": "...", "task": "..."}
+    {
+      "id": "task-42",         // string, obrigatório
+      "health": 0.83,          // number 0..1, opcional (default 1)
+      "isFreakingOut": false,  // boolean, opcional (default false)
+      "name": "Meeseeks-7e3a", // string, opcional, ≤32 chars
+      "task": "rebalance ..."  // string, opcional
+    }
   ]
 }
 
-// state — update de health de um id existente
-{"type": "state", "id": "...", "health": 0.4}
+// state — update absoluto de saúde
+{"type": "state", "id": "task-42", "health": 0.74}
 
-// event — transição discreta
+// event — transições discretas
 {"type": "event", "kind": "born",
- "id": "...", "name": "...", "task": "..."}
-
-{"type": "event", "kind": "died_happy", "id": "..."}
-{"type": "event", "kind": "died_defeated", "id": "..."}
-{"type": "event", "kind": "freaking_out", "id": "..."}
-{"type": "event", "kind": "recovered", "id": "..."}   // não usaremos
+ "id": "task-42", "name": "Meeseeks-7e3a", "task": "..."}
+{"type": "event", "kind": "died_happy",    "id": "task-42"}
+{"type": "event", "kind": "died_defeated", "id": "task-42"}
+{"type": "event", "kind": "freaking_out",  "id": "task-42"}
+// "recovered" não emitido — Meeseeks não recupera no MMB
 ```
 
-Mapeamento de decay → health (esboço, calibrar):
+Regras operacionais (do lado deles, importantes pro nosso código):
+
+- Ordem **FIFO** por conexão. Não precisa serializar do lado do MMB.
+- `snapshot` é tratado como **reset** completo no lado deles. Útil
+  como "anúncio de estado" no reconnect.
+- `state` ou `event != born` referente a `id` desconhecido é
+  **dropado silenciosamente** — `born` é o único jeito de um
+  Meeseeks aparecer. Garantir essa ordem é obrigação do cliente.
+- `state` pra `id` que já morreu também é dropado.
+- `freaking_out` e `born` são idempotentes; podem ser reenviados
+  sem efeito.
+- Payload inválido (campo faltando, tipo errado) é dropado, conexão
+  segue viva — não fechamos por causa de uma mensagem ruim.
+- `name` ≤32 chars (truncar antes de mandar). `task` aceita texto
+  livre, até KB.
+
+Mapeamento de decay → health (esboço, calibrar na implementação):
 
 | Tempo do Meeseeks | Frase decay | Health proposta |
 |---|---|---|
 | 0-3min | Working on it! | 1.0 → 0.85 |
 | 3-8min | Caaaaan do! | 0.85 → 0.65 |
 | 8-15min | Oh boy, this is tricky | 0.65 → 0.40 |
-| 15-25min | Existing is becoming pain | 0.40 → 0.15 (freaking_out!) |
+| 15-25min | Existing is becoming pain | 0.40 → 0.15 (`freaking_out`!) |
 | 25min+ | Pleeease let me finish | 0.15 → 0.05 |
 
 ## Implementação sugerida
 
-Estrutura:
+### Princípio arquitetural
+
+Espelhe o que foi feito com `logger/` no Ato VI: o módulo
+`aquario/` é **completamente desacoplado** do core. Zero `import
+discord` dentro dele. Bot.py só "puxa" o módulo como adapter
+externo e chama `emit(...)` nos pontos canônicos. Falha do
+aquário não derruba o bot. Mesmo padrão de "side car observável"
+do logger.
+
+### Estrutura
 
 ```
 aquario/
 ├── __init__.py
 ├── client.py        # WebSocket client com reconnect + ring buffer
 ├── messages.py      # dataclasses + serializer (Snapshot, State, Event)
-└── lifecycle.py     # converte phase/elapsed → mensagem
+└── lifecycle.py     # converte phase/elapsed → mensagem (funções puras)
 ```
 
 `client.py`: classe `AquarioClient` com `start()`, `stop()`,
 `emit(message)`. `emit` enfileira; uma task asyncio drena a fila
-no socket. Reconnect transparente. Heartbeat via `ping_interval`.
+no socket. Reconnect transparente. Ping/pong delegado à lib
+`websockets` (`ping_interval=20`, `ping_timeout=10` ou
+similares).
 
-`lifecycle.py`: funções puras testáveis. `health_from_elapsed(s)`,
-`event_for_phase(phase) -> Optional[Event]`, etc.
+`lifecycle.py`: funções puras testáveis sem mock de IO.
+`health_from_elapsed(s)`, `event_for_phase(phase) -> Optional[Event]`,
+etc. Mesmo padrão do `_parse_shortstat` e do `_is_transient_autoupdate`.
 
 Hook em `bot.py`: instancia o cliente em `on_ready` (igual ao
 `_logger`). Cada `_send_*` chama `_aquario.emit(...)` (best-effort,
 nunca raises).
 
-Para `state` periódico: aproveite o `_heartbeat` async task que já
+Para `state` periódico: aproveite a task `_heartbeat` async que já
 roda durante o run. Em vez de só editar o Discord, também emite
-state pro aquário.
+state pro aquário a cada tick.
+
+### Invariante crítico
+
+`event born` precisa ser emitido **antes** de qualquer `state` ou
+outro `event` pro mesmo `id`. O aquário dropa silenciosamente
+mensagens pra `id` desconhecido. Implemente isso explicitamente
+em `bot.py` (emite born imediatamente no spawn do Meeseeks, antes
+de qualquer outra coisa).
 
 ## Testes a adicionar
 
@@ -185,24 +237,57 @@ state pro aquário.
 - Ring buffer descarta mais antigo quando full.
 - `stop()` drena e fecha graciosamente.
 
-## Decisões em aberto
+## Decisões fechadas
 
-1. **`event recovered`** — não há fonte natural no MMB. Recomendo
-   deixar fora desta task. Se quiser instrumentar, é evolução
-   futura (ex.: detectar que `npm test` passou após uma falha
-   intermediária no Meeseeks). Confirme com o Rick.
-2. **Tamanho do ring buffer** — 1000 mensagens. Suficiente pra
-   absorver disconnect de minutos.
-3. **`AQUARIUM_ENABLED=false` default** — pra não exigir aquário
-   ativo durante dev local nem nos testes E2E (eles não devem
-   depender da conexão externa).
-4. **Library** — sugiro `websockets>=12` (mantida, async-nativa,
-   simples). Adicione ao `requirements.txt` (ou onde estiver hoje).
-   Verifique antes se já há outra lib WS no projeto.
-5. **Conexão real** — você não vai conseguir testar end-to-end sem
-   o serviço do aquário rodando em algum lugar acessível. Combine
-   com o Rick um endpoint de staging. Sem isso o critério #9 não
-   fecha.
+Estas decisões foram alinhadas com o Rick e com o time do aquário.
+Não precisa reconfirmar antes de implementar.
+
+1. **`event recovered` fica fora.** MMB não emite. Meeseeks decai
+   monotônico até morrer.
+2. **Ring buffer = 1000 mensagens.** Suficiente pra absorver
+   disconnect de minutos a rate <1msg/s. Descarta a mais antiga
+   quando cheio.
+3. **`AQUARIUM_ENABLED=false` é o default** no `.env`. Bot opera
+   normalmente sem o aquário; só conecta quando o flag é `true`.
+4. **Endpoint**: `ws://localhost:8080/ws` (default em `config.py`).
+   Sem TLS, sem auth. Override via `AQUARIUM_WS_URL` se necessário.
+5. **Library**: `websockets` (não-versionada, pegar a mais nova
+   estável). Async-nativa, suporta `ping_interval`/`ping_timeout`
+   embutido. Adicionar ao `requirements.txt`. Confirmar antes que
+   não tem outra lib WS no projeto.
+6. **Reconnect**: 1s → 2s → 5s → 10s → 30s, ±20% jitter, cap 30s,
+   sem limite de tentativas.
+7. **Tenant / `project` field**: fora desta versão. Será aditivado
+   quando B1 (multi-projeto) for entregue — backward-compatible
+   pelo lado deles.
+
+## Como ver na prática
+
+Pra validar o critério #9 ponta a ponta, três processos em
+paralelo no localhost (cada um em um terminal):
+
+```bash
+# Terminal 1 — servidor do aquário (deles)
+cd <repo-do-aquario>
+<comando deles pra subir o WS server na porta 8080>
+
+# Terminal 2 — front do aquário (deles)
+cd <repo-do-aquario-front>
+<comando deles pra abrir o front no browser>
+
+# Terminal 3 — MMB com aquário ligado
+cd <raíz-do-MMB>
+AQUARIUM_ENABLED=true .venv/bin/python bot.py
+```
+
+Com isso de pé, dispara um `/meeseeks` qualquer no Discord. Você
+deve ver no browser:
+
+- Meeseeks aparecer (`born`) imediatamente.
+- Saúde decair gradual ao longo do run.
+- Se passar dos 15min, sprite entra em pânico (`freaking_out`).
+- No fim, some com brilho (`died_happy`) ou fade triste
+  (`died_defeated`).
 
 ## Dependências
 - Bloqueia: A3 (aquário multi-projeto depende deste primeiro).
