@@ -151,22 +151,38 @@ mindmap
         Depende B1
         Adiciona campo project ao payload
         Aquário compartilhado entre projetos
-    Trilha B · Plataforma
-      🎯 B1 Projetos cidadão 1a classe
+    Trilha B · Plataforma · dois modos
+      ✅ B-discovery Modos de operação
+        Fechado em 2026-05-14
+        11 decisões consolidadas
+        Reframe: B1 sozinho virou B1-B5
+      🎯 B1 Multi-projeto pontual base
         Comando /project add list remove
+        Coluna mode TEXT default pontual
         Discord autocomplete de projeto
-        TARGET_PROJECT_PATH some · runtime lookup
-        Migração de mmb.db existente
-      ⬜ B2 Garagem com contexto persistente
-        Decisão de modelo · ver pergunta aberta
-        Storage de contexto por projeto
-        Inclusão automática no system_prompt
-        Depende B1
-      ⬜ B3 Modelo por fase
-        Garagem Opus 4.7 explícito
-        Meeseeks Sonnet 4.6 explícito
-        Config via env por fase
-        Independente de B1/B2 · pode ir junto
+        Runtime lookup substitui TARGET_PROJECT_PATH
+      🔒 B3 Bootstrap interview construtor
+        Gera camada agêntica mínima no alvo
+          AGENTS.md
+          .mmb/contexto.md
+          .mmb/decisoes.md
+        Entrevista adapta profundidade aos sinais
+        Bloqueado por B1
+      🔒 B2 Sessão Claude persistente da Garagem
+        session_id por projeto centralizado no SQLite
+        Resume via claude -c
+        Compactação periódica de histórico
+        Opus pra construtor · Sonnet pra pontual
+        Bloqueado por B1 + B3
+      🔒 B5 Promoção orgânica
+        Detecta sinais de "deveria virar construtor"
+        Sugere a Rick · ele aprova
+        Bloqueado por B2
+      🔒 B4 Proatividade do construtor
+        Scheduler (cron-like)
+        Canal de comunicação proativa
+        Lembra do que ficou pendente
+        Bloqueado por B2
     Trilha E · Cockpit de Operações
       ✅ E0 Discovery cockpit
         Fechado em 2026-05-14
@@ -219,9 +235,18 @@ flowchart LR
   A2[⬜ A2 Camadas C+E]:::todo
   A3[🔒 A3 Aquário multi]:::locked
 
-  B1[🎯 B1 Projetos 1a classe]:::ready
-  B2[⬜ B2 Garagem contexto]:::todo
-  B3[⬜ B3 Modelo por fase]:::todo
+  Bd[✅ B-discovery Modos]:::done
+  B1[🎯 B1 Multi-projeto pontual]:::ready
+  B3[🔒 B3 Bootstrap interview]:::locked
+  B2[🔒 B2 Sessão persistente]:::locked
+  B5[🔒 B5 Promoção orgânica]:::locked
+  B4[🔒 B4 Proatividade]:::locked
+
+  Bd --> B1
+  B1 --> B3
+  B3 --> B2
+  B2 --> B5
+  B2 --> B4
 
   C1[✅ C1 Retry transiente]:::done
   C2[✅ C2 E2E erro]:::done
@@ -236,10 +261,7 @@ flowchart LR
   E1 --> E2
 
   B1 --> A3
-  B1 --> B2
   C2 --> C4
-
-  B3 -.opcional.-> B2
 ```
 
 ---

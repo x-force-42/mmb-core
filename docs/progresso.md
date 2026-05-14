@@ -5,6 +5,60 @@ Mais recente no topo.
 
 ---
 
+## 2026-05-14 — discovery dos modos · trilha B explode em 5
+
+Conversa de discovery com o Rick consolidou uma virada importante
+no escopo da trilha B (Plataforma). O conceito de "multi-projeto"
+ganhou duas dimensões: **modo pontual** (MMB como executor de
+tarefas discretas — como é hoje) vs **modo construtor** (MMB
+acompanha projeto do nascimento ao amadurecimento, com sessão
+Claude persistente, camada agêntica plantada no alvo, e
+proatividade).
+
+### Decisões consolidadas (vide `docs/tasks/B-discovery-modos.md`)
+
+11 decisões fechadas. Destaques:
+
+- Cada projeto cadastrado tem `mode` (`pontual` ou `construtor`,
+  default pontual).
+- Modo evolui organicamente — orquestrador sugere promoção.
+- Construtor implanta **mínimo** no alvo (`AGENTS.md` + `.mmb/contexto.md`
+  + `.mmb/decisoes.md`). Sem cosplay agêntico — Meeseeks já é
+  instruído por `skills/meeseeks.md`.
+- Contexto da Garagem = sessão Claude persistente (`session_id`
+  centralizado no SQLite, retomada via `claude -c`).
+- Sessões precisam de compactação periódica (input tokens
+  escalam) — mecanismo detalhe de B2.
+- Construtor é **proativo** — comprometido em fazer o projeto
+  andar. Requer scheduler novo.
+- Modelos por modo: construtor → Opus, pontual → Sonnet.
+- Multissessões coexistem — Rick pode ter N construtor + M pontual.
+
+### Reframe da trilha B
+
+| ID | Foco |
+|---|---|
+| B-discovery | (este doc) ✅ |
+| B1 | Multi-projeto pontual base — fundação |
+| B3 | Bootstrap interview + camada agêntica no alvo |
+| B2 | Sessão persistente + modelo por modo |
+| B5 | Promoção orgânica pontual → construtor |
+| B4 | Proatividade (scheduler + canal proativo) |
+
+Ordem implementação: B1 → B3 → B2 → B5 → B4. B1 ganhou ajustes
+mínimos pós-discovery (campo `mode` na tabela `projects`).
+B2-B5 ficam como esqueletos no INDEX, brief gerado quando turno
+chegar.
+
+### Implicação prática
+
+A trilha B deixou de ser uma task única e virou **roadmap multi-mês**.
+Camada de complexidade muito maior do que estava previsto, mas
+justificada — modo construtor é onde mora a tese real do MMB
+como plataforma colaborativa, não só executora.
+
+---
+
 ## 2026-05-14 — A1 fechado · presença ao vivo operacional
 
 ### A1 entregue (commit `3287a49`)

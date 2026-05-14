@@ -7,7 +7,7 @@ B1
 B — Plataforma
 
 ## Status
-🎯 pronto pra delegar
+🎯 pronto pra delegar — atualizado pós-discovery de modos (2026-05-14)
 
 ## Intenção
 
@@ -27,12 +27,32 @@ populada via `ensure_project` no `on_ready`. Esta task transforma
 essa tabela de "side effect informativo" em "registro autoritativo
 consultado em runtime".
 
+## Adições pós-discovery de modos (2026-05-14)
+
+A trilha B foi reframeada — agora B1 é a **fundação multi-projeto
+em modo pontual**. Modo construtor + sessão persistente +
+proatividade são tasks subsequentes (B2-B5). Vide
+[`B-discovery-modos.md`](B-discovery-modos.md).
+
+Mudanças mínimas no escopo desta task pra suportar a evolução:
+
+1. Tabela `projects` ganha coluna `mode TEXT NOT NULL DEFAULT
+   'pontual'` (junto com `active INTEGER DEFAULT 1` já planejado).
+2. `/project add` aceita parâmetro opcional `mode: 'construtor' |
+   'pontual'`. Default `pontual`.
+3. `/project list` exibe a coluna `mode` no embed.
+4. **B1 não implementa nenhum comportamento de construtor**. Só
+   permite armazenar a flag. Quem ativa o comportamento é a B3
+   (bootstrap interview + geração da camada agêntica no alvo).
+
+Resto do escopo permanece como definido abaixo.
+
 ## Escopo
 
 ### Dentro
 - Comando Discord `/project` com subcomandos:
   - `/project add path:<absolute_path> slug:<short_name>
-    [name:<display>]`
+    [name:<display>] [mode:<pontual|construtor>]`
   - `/project list`
   - `/project remove slug:<short_name>` (soft delete ou hard? ver
     decisões)

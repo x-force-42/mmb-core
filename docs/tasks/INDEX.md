@@ -20,11 +20,13 @@ o que quer fazer? Siga:
 
 | ID | Título | Trilha | Status | Brief |
 |---|---|---|---|---|
-| **B1** | Projetos como cidadão 1ª classe | B — Plataforma | 🎯 pronto | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) |
+| **B1** | Multi-projeto pontual (cadastro + lookup runtime + campo `mode`) | B — Plataforma | 🎯 pronto | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) |
 | A2 | Identidade visual (Camada C+E) | A — Presença | ⬜ não iniciado | (sem brief) |
 | A3 | Aquário multi-projeto | A — Presença | 🔒 bloqueado por B1 | (sem brief) |
-| B2 | Garagem com contexto persistente | B — Plataforma | ⬜ decisão em aberto | (sem brief) |
-| B3 | Modelo por fase (Opus Garagem, Sonnet Meeseeks) | B — Plataforma | ⬜ não iniciado | (sem brief) |
+| B2 | Sessão Claude persistente da Garagem + compactação + modelo por modo | B — Plataforma | 🔒 bloqueado por B3 | (sem brief — gerar quando turno chegar) |
+| B3 | Bootstrap interview + geração de camada agêntica no alvo | B — Plataforma | 🔒 bloqueado por B1 | (sem brief — gerar quando turno chegar) |
+| B4 | Proatividade (scheduler + canal proativo do construtor) | B — Plataforma | 🔒 bloqueado por B2 | (sem brief — gerar quando turno chegar) |
+| B5 | Promoção orgânica (detecção de sinais pontual → construtor) | B — Plataforma | 🔒 bloqueado por B2 | (sem brief — gerar quando turno chegar) |
 | C3 | Cenário E2E anti-escopo | C — Robustez | ⬜ não iniciado | (sem brief) |
 | C4 | Calibração com cenários reais | C — Robustez | ⬜ desbloqueado | (sem brief) |
 | E2+ | Frontend do Cockpit (repo separado) | E — Cockpit | 🔒 espera repo `mmb-cockpit` | (fora deste repo) |
@@ -33,6 +35,7 @@ o que quer fazer? Siga:
 | ~~C2~~ | Cenários E2E de erro | C — Robustez | ✅ fechado em `ff08269` | [`C2-cenarios-e2e-erro.md`](C2-cenarios-e2e-erro.md) |
 | ~~E0~~ | Discovery — Cockpit de Operações | E — Cockpit | ✅ fechado em 2026-05-14 | [`E0-discovery-cockpit.md`](E0-discovery-cockpit.md) |
 | ~~E1~~ | API do Cockpit de Operações | E — Cockpit | ✅ fechado em `f2aa145` | [`E1-api-cockpit.md`](E1-api-cockpit.md) |
+| ~~B-discovery~~ | Discovery — Modos de operação (Trilha B) | B — Plataforma | ✅ fechado em 2026-05-14 | [`B-discovery-modos.md`](B-discovery-modos.md) |
 
 ## Matriz de paralelismo
 
