@@ -1,146 +1,243 @@
-# Árvore do projeto
+# Mr. Meeseeks Box — Plano
 
-Visualização do caminho percorrido + próximos passos. Atos concluídos
-ficam verdes, o atual amarelo, os próximos cinza (e cinza opaco quando
-bloqueados por dependência).
+Mapa vivo. Norte de médio-longo prazo + decomposição em trilhas
+paralelas + dependências explícitas. Atualizado a cada milestone.
+
+## Visão
+
+**Plataforma multi-projeto de execução determinística por agentes.**
+O Rick lança uma tarefa em qualquer projeto cadastrado via Discord.
+Uma Garagem com contexto persistente daquele projeto planeja; um
+Meeseeks com identidade própria executa em worktree isolada; um
+aquário ao vivo mostra todo Meeseeks em curso, em todos os projetos,
+respirando até morrer feliz ou derrotado. Tudo gravado em SQLite,
+calibrável por modelo (Opus na decisão, Sonnet na execução),
+auditável retroativamente e reproduzível via cenários E2E.
+
+A versão final deve dar pra Rick gerenciar 5+ projetos sem trocar de
+contexto mental — o sistema faz a separação por baixo.
 
 ## Como visualizar
 
-Em ordem de fricção (menor → maior):
-
-1. **VSCode + extensão "Markdown Preview Mermaid Support"**
-   (`bierner.markdown-mermaid`) — grátis, oficial. Abre este `.md` e
-   dá `Ctrl+Shift+V` pro preview lateral.
-2. **GitHub** renderiza `.md` com Mermaid nativamente.
-3. **[mermaid.live](https://mermaid.live)** — cola o bloco, vê na hora.
-4. **Obsidian / Notion / Confluence** — renderizam nativo.
+`.md` com Mermaid abre em VSCode (ext. `bierner.markdown-mermaid`,
+`Ctrl+Shift+V`), GitHub, [mermaid.live](https://mermaid.live),
+Obsidian e similares.
 
 ## Legenda
 
 | Cor | Símbolo | Significado |
 |---|---|---|
-| 🟢 verde | ✅ | Ato concluído, em produção, smoke testado |
-| 🟡 amarelo | 🟡 | Ato em curso (você está aqui) |
-| ⬜ cinza | ⬜ | Próximo ato, escopo definido mas não iniciado |
-| 🔒 cinza apagado | 🔒 | Ato bloqueado por dependência ou decisão externa |
+| 🟢 verde | ✅ | Concluído, em uso |
+| 🟡 amarelo | 🟡 | Em curso agora |
+| ⬜ cinza | ⬜ | Próximo, escopo definido |
+| 🔒 cinza escuro | 🔒 | Bloqueado por dependência |
+| 🎯 alvo | 🎯 | Pronto pra delegar (sem dep pendente, escopo fechado) |
 
 ---
 
-## Mindmap — árvore conceitual
+## Onde estamos
 
-Cada nó central é um **ato** do projeto. Os filhos detalham o conteúdo.
-Atos pintados conforme a legenda acima.
+Pipeline ponta-a-ponta funcional contra **um único** `TARGET_PROJECT_PATH`.
+Observabilidade gravada em SQLite com 4 queries prontas via Datasette.
+E2E reproduzível com fixture isolado, 2 cenários verdes.
+
+Próximo movimento: pular pra **plataforma multi-projeto + presença ao
+vivo**, com qualidade rodando em background. Três trilhas em paralelo.
+
+```
+PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
+●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ ━ ━ →
+                ↑
+        v0.5.0 (a taggar)
+```
+
+---
+
+## Histórico — atos concluídos
 
 ```mermaid
 mindmap
-  root((Mr. Meeseeks<br/>Box))
+  root((MMB<br/>passado))
     ✅ ATO I — Pipeline funcional
       commit 5ab35c3
-        Discord bot + /meeseeks
-        Garagem read-only
-          Schema JSON estrito
-          slug + commit em inglês
-        Meeseeks full perms
-          test → write tests → build → commit
-        Auto-chain determinístico
-        Worktree isolada
-        Dev server background
-      side auto-updater
-        DISABLE_AUTOUPDATER=1
-        FileNotFoundError graceful
-      side calibração Garagem
-        Orçamento ≤5 Reads
-        Refactor 3 casos
-        Critério rigoroso
+      Discord bot + /meeseeks
+      Garagem read-only
+      Meeseeks full perms · worktree isolada
     ✅ ATO II — Imersão A+B 🏷️ v0.1.0
       commit 4d17319
-      Microcopy POOF Look at me
-      Heartbeat decay 5 fases
-      Activity Watching Rick
-      docs viva: plano-imersao, progresso
+      Microcopy + heartbeat decay
     ✅ ATO III — Refactor modular 🏷️ v0.2.0
       commit fba05fc
-      formatters.py funções puras
-      parsing.py extrair_json
-      claude_runner.py subprocess único
-      pipeline.py headless
-      bot.py linear
+      formatters · parsing · claude_runner · pipeline
     ✅ ATO IV — Guardrails de teste 🏷️ v0.3.0
-      commit c4cafbb
-        61 testes formatters+parsing
-        pytest infra
-      commit e64e7ac
-        146 testes 91% cov
-        integration test worktree
+      commits c4cafbb · e64e7ac
+      192 testes · 89% cobertura
     ✅ ATO V — Imersão visual D 🏷️ v0.4.0
       commit 45269d0
-      embeds.py paleta 6 cores
-      overflow elegante
-      31 testes embeds 100%
-    🟡 ATO VI — Observabilidade
-      🏷️ v0.5.0 iminente
-      logger/ SDK desacoplado
-        tabela projects
-        tabela runs — métricas completas por fase
-        GaragemEntry · MeeseeksEntry · DevServerEntry
-        SQLite · agnóstico ao core
-        29 testes 100%
-      integração ao core bot.py
-      dashboard front futuro
-    ⬜ ATO VII — Calibração científica
-      5 cenários reais PO/DEV catalogados
-      runner headless via pipeline
-      relatório de performance comparativo
-      depende Ato VI
-    🔒 ATO VIII — Polish
-      Camada C Meeseeks nome único
-      Camada E botões interativos
-      Fase 3 Config dataclass
-      Fase 4 DevServer class
-      depende Ato VII
+      Embeds Discord · paleta · overflow
+    ✅ ATO VI — Observabilidade
+      commits 046abdb · 086c002
+      Logger SDK · integração ao core
+      Datasette + queries salvas
+      fix cost_usd · criticidade/complexidade
+    ✅ ATO VII — Arnês E2E
+      commit d279e6c
+      Fixture isolado · cleanup auto
+      2 cenários verdes · ~$0.10/suite
+      docs/cenarios-e2e.md
 ```
-
----
-
-## gitGraph — timeline de commits e tags
-
-Espelha o `git log` real, com tags marcando os marcos. Estende com
-**bolinhas previstas** pros próximos atos — texto em parênteses
-indica que ainda não existem no histórico.
 
 ```mermaid
 gitGraph
-   commit id: "init"
    commit id: "5ab35c3"
    commit id: "4d17319" tag: "v0.1.0"
    commit id: "fba05fc" tag: "v0.2.0"
-   commit id: "c4cafbb"
    commit id: "e64e7ac" tag: "v0.3.0"
    commit id: "45269d0" tag: "v0.4.0"
-   commit id: "(logger integrado)" type: HIGHLIGHT
-   commit id: "(calibração)" type: REVERSE
-   commit id: "(polish acts)" type: REVERSE
+   commit id: "046abdb"
+   commit id: "086c002"
+   commit id: "d279e6c" tag: "v0.5.0?"
 ```
 
-> Bolinhas tipo **HIGHLIGHT** (Camada D) já foram produzidas mas estão
-> pendentes de commit/tag. Bolinhas tipo **REVERSE** (visualmente
-> vazadas) são previsões — ainda não existem.
+> A tag `v0.5.0` ainda não foi cravada. Pronta quando você quiser.
 
 ---
 
-## Onde estamos agora
+## Trilhas paralelas
 
+Três trilhas independentes. Atos com 🎯 estão prontos pra delegar a
+um agente externo sem você precisar acompanhar passo a passo —
+escopo fechado, dependências resolvidas, critério de pronto claro.
+
+```mermaid
+mindmap
+  root((MMB<br/>futuro))
+    Trilha A · Presença
+      🎯 A1 Aquário mono-projeto
+        WebSocket client com reconnect
+        Mapeia decay → health 0..1
+        Eventos born/died/freaking_out
+        Aceita project mockado por enquanto
+      ⬜ A2 Identidade visual
+        Camada C · Meeseeks-XXXX nome único
+        Camada E · botões inline mergear/descartar
+      🔒 A3 Aquário multi-projeto
+        Depende B1
+        Adiciona campo project ao payload
+        Aquário compartilhado entre projetos
+    Trilha B · Plataforma
+      🎯 B1 Projetos cidadão 1a classe
+        Comando /project add list remove
+        Discord autocomplete de projeto
+        TARGET_PROJECT_PATH some · runtime lookup
+        Migração de mmb.db existente
+      ⬜ B2 Garagem com contexto persistente
+        Decisão de modelo · ver pergunta aberta
+        Storage de contexto por projeto
+        Inclusão automática no system_prompt
+        Depende B1
+      ⬜ B3 Modelo por fase
+        Garagem Opus 4.7 explícito
+        Meeseeks Sonnet 4.6 explícito
+        Config via env por fase
+        Independente de B1/B2 · pode ir junto
+    Trilha C · Robustez
+      🎯 C1 Retry transiente no runner
+        FileNotFound + exit 2 cli ausente
+        Backoff curto · 1-2 retries
+        Mata o race do auto-update
+      🎯 C2 Cenários E2E de erro
+        Pushback vague_prompt
+        no_slug forçado
+        meeseeks_failure por tarefa impossível
+      ⬜ C3 Cenário E2E anti-escopo
+        Verify falha se briefing inflar
+        Trava disciplina da Garagem
+      ⬜ C4 Calibração com cenários reais
+        5 cenários reais PO/DEV
+        Comparativo de modelo
+        Depende C2 verde
 ```
-PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
-●━━●━━●━━●━━●━━●━━🟡 ┄┄┄ ⬜ ┄┄┄ 🔒
-               ↑
-          você está aqui
-          Ato VI — logger SDK pronto
-          falta integrar ao core + tag v0.5.0
+
+### Mapa de dependências
+
+```mermaid
+flowchart LR
+  classDef ready  fill:#cfa,stroke:#393,stroke-width:2px
+  classDef todo   fill:#eee,stroke:#999
+  classDef locked fill:#ccc,stroke:#666,stroke-dasharray:4
+
+  A1[🎯 A1 Aquário mono]:::ready
+  A2[⬜ A2 Camadas C+E]:::todo
+  A3[🔒 A3 Aquário multi]:::locked
+
+  B1[🎯 B1 Projetos 1a classe]:::ready
+  B2[⬜ B2 Garagem contexto]:::todo
+  B3[⬜ B3 Modelo por fase]:::todo
+
+  C1[🎯 C1 Retry transiente]:::ready
+  C2[🎯 C2 E2E erro]:::ready
+  C3[⬜ C3 E2E anti-escopo]:::todo
+  C4[⬜ C4 Calibração real]:::todo
+
+  B1 --> A3
+  B1 --> B2
+  C2 --> C4
+
+  B3 -.opcional.-> B2
 ```
 
-## Próximos ramos a brotar
+---
 
-Atos VI e VII já estão no mindmap acima como nós cinza. Quando
-entrarmos em cada um, vão amadurecendo pra amarelo (atual) e depois
-verde (concluído). Este arquivo é vivo — atualizo a cada milestone.
+## Coreografia recomendada
+
+Você indicou que rodaria **três frentes em paralelo** (caminho C),
+delegando aos agentes CLI. Sugestão de quem vai pra onde, levando em
+conta isolamento de mudanças (pra evitar conflito de merge):
+
+| Trilha | Quem | Por quê |
+|---|---|---|
+| **A1** Aquário mono | Agente focado | Toca arquivos novos (client websocket) + hook no `bot.py` em pontos isolados. Conflito baixo. |
+| **B1** Projetos cidadão | Agente focado | Refactor amplo em `config.py`, `bot.py`, `logger`. **Não rode em paralelo com A1** se evitar — ambos tocam `bot.py`. Faça B1 sequencial após A1 ou planeje merge. |
+| **C1** Retry transiente | Agente leve | Pequeno, isolado em `claude_runner.py` + testes. Roda em paralelo a qualquer coisa sem conflito. |
+| **C2** Cenários E2E erro | Você ou agente leve | Só adiciona arquivos em `tests/e2e/scenarios/`. Conflito zero. |
+
+**Ordem ótima se for delegar 3 agentes esta semana:**
+
+1. Dispara **C1** + **C2** em paralelo (zero risco de merge).
+2. Quando C1 fechar, dispara **A1** (aquário precisa do `bot.py` estável).
+3. **B1** entra DEPOIS de A1 mergeado — eles concorreriam pelo mesmo arquivo.
+4. B2/B3 depois de B1.
+5. A2/A3 depois de B1.
+
+---
+
+## Marcos (releases)
+
+| Tag | Conteúdo | Quando |
+|---|---|---|
+| `v0.5.0` | Atos VI + VII | Pronto — tag a qualquer momento |
+| `v0.6.0` | C1 + C2 | Quando trilha C estabilizar |
+| `v0.7.0` | A1 + A2 | Primeira entrega visível da trilha A |
+| `v0.8.0` | B1 | Multi-projeto operacional |
+| `v0.9.0` | A3 + B2 + B3 | Plataforma viva com presença |
+| `v1.0.0` | Visão completa | Quando 5 projetos rodarem confortável |
+
+---
+
+## Perguntas em aberto
+
+Decisões que travam atos. Resolver antes ou junto com o início do ato.
+
+1. **B2 — Como Garagem mantém contexto?** Prompt enriquecido auto-editado,
+   memória estruturada em DB, ou sessão contínua via `claude -c`?
+2. **A1 — `recovered` no protocolo do aquário** — instrumentar
+   Meeseeks pra emitir (ex: passou no teste depois de falhar), ou
+   deixar não usado e aceitar saúde monotônica decrescente?
+3. **Quando taggar v0.5.0?** — não bloqueia nada, mas marca o
+   estado consolidado antes da grande virada.
+
+---
+
+Este arquivo é vivo — atualizo a cada milestone. Próxima revisão
+quando uma das trilhas fechar primeira entrega.

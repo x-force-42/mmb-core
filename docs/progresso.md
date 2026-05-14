@@ -5,6 +5,78 @@ Mais recente no topo.
 
 ---
 
+## 2026-05-13 — virada de eixo · `v0.5.0` candidato
+
+### Atos VI + VII consolidados
+
+**Ato VI — Observabilidade** (commits `046abdb` + `086c002`)
+
+- `logger/` SDK desacoplado em SQLite. Tabelas `projects` + `runs`,
+  schema rico (tokens, custo, diff stats, outcome por fase, review
+  manual). 29 testes próprios em `:memory:`.
+- Integração ao `bot.py`: `start_run` → `record_garagem` →
+  `record_meeseeks` → `record_dev_server` → `finish_run`, com
+  helpers `_garagem_entry`/`_meeseeks_entry` mantendo o handler
+  enxuto. `_send_*` permanecem só renderizando embed.
+- Captura de `tokens_input/output`, `cost_usd` (via
+  `total_cost_usd` do envelope — bug histórico corrigido) e `diff
+  stats` via `git diff --shortstat`.
+- Garagem ganhou `criticidade` e `complexidade` no schema do briefing.
+- Visualização via Datasette: `datasette mmb.db -m datasette_metadata.json`,
+  facets default + 4 queries salvas (últimos runs, custo/dia, taxa
+  de pushback, falhas pra investigar).
+- +17 testes cobrindo o contrato com o envelope real do CLI,
+  propagação de tokens/cost em cada camada, e `_parse_shortstat`
+  em 9 formatos do git.
+
+**Ato VII — Arnês E2E** (commit `d279e6c`)
+
+- Fixture isolado em repo separado (`~/llab/mmb-fixture`, commit
+  `17ca392`): zero deps, `node --test` nativo, `tests/pending/`
+  ativável por cenário, `dev-server` stub na :5173.
+- `tests/e2e/harness.py` + `conftest.py` com cleanup automático:
+  reset pro SHA pristine, remove worktrees + branches `meeseeks/*`,
+  mata processo na :5173.
+- 2 cenários verdes em 2min20s, ~US$0.10 por suite:
+  - `01_rename_greet_to_welcome` — validação por grep + DB row
+  - `02_implement_farewell` — contrato via teste pré-escrito, `npm
+    test` no worktree real
+- `scripts/e2e.sh` como entrypoint dedicado, fora do `pytest`
+  default. Marker `e2e` registrado, testpaths narrow.
+- `docs/cenarios-e2e.md` — guia de autoria (princípios,
+  anti-padrões, catálogo desejado).
+
+### Virada de eixo estratégico
+
+A visão deixou de ser "bot de uma feature" e passou a ser
+**plataforma multi-projeto de execução determinística por agentes**.
+Detalhes em `docs/arvore.md`. Implicações:
+
+- Conceito de **projeto como cidadão de 1ª classe** (matar
+  `TARGET_PROJECT_PATH`, registrar projetos via slash command).
+- **Garagem com contexto persistente** por projeto, em Opus.
+- **Aquário de Meeseeks** como visualização ao vivo (WebSocket
+  push, snapshot + state + event). Spec recebida do time do
+  aquário, mapeamento ao MMB feito.
+- Trabalho passa a ser **três trilhas paralelas** (Presença,
+  Plataforma, Robustez) em vez de atos sequenciais.
+
+### Sistema de delegação para agentes paralelos
+
+`docs/tasks/` + `scripts/task-start.sh` permitem lançar várias
+sessões do Claude CLI em paralelo, cada uma em worktree própria,
+trabalhando em tasks diferentes sem conflito de merge. CLAUDE.md
+ganhou seção de bootstrap que faz o agente identificar tasks
+abertas e perguntar qual atacar.
+
+### Status
+
+- 192 testes unit/integration verdes em ~3s, +2 E2E em ~2min.
+- 4 tasks 🎯 prontas pra delegar (A1, B1, C1, C2).
+- Master limpa, pronta pra tag `v0.5.0` quando você decidir.
+
+---
+
 ## 2026-05-13 — `v0.3.0` guardrails de teste consolidados
 
 ### Imersão temática (consolidada após smoke)
