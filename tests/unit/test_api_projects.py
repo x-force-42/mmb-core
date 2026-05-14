@@ -37,3 +37,25 @@ class TestListProjects:
         assert [p["slug"] for p in items] == ["alpha", "zeta"]
         assert items[0]["repo_url"] == "https://x/a"
         assert items[1]["repo_url"] is None
+
+    def test_expose_active_and_mode(self, api):
+        client, log = api
+        log.ensure_project(slug="x", name="X", path="/x")
+        r = client.get("/api/projects")
+        items = r.json()["items"]
+        # ensure_project usa o default do schema → active=1, mode='pontual'
+        assert items[0]["active"] == 1
+        assert items[0]["mode"] == "pontual"
+
+    def test_oculta_projetos_inativos(self, api, tmp_path):
+        client, log = api
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        (repo / ".git").mkdir()
+        log.register_project(slug="vivo", path=str(repo))
+        log.register_project(slug="morto", path=str(repo))
+        log.deactivate_project("morto")
+        items = client.get("/api/projects").json()["items"]
+        slugs = [p["slug"] for p in items]
+        assert "vivo" in slugs
+        assert "morto" not in slugs

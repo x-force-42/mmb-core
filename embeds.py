@@ -183,3 +183,44 @@ def embed_sucesso(
         body=formatar_sucesso(m, dev_port, target_path),
         color=COR_SUCESSO,
     )
+
+
+# ─── /project ────────────────────────────────────────────────────────────
+# Minimalistas por design — UI de cadastro vai ser repensada na B3
+# (bootstrap interview). Não invistam UX aqui antes disso.
+
+def embed_project_ok(titulo: str, descricao: str) -> discord.Embed:
+    return discord.Embed(title=titulo, description=descricao, color=COR_SUCESSO)
+
+
+def embed_project_erro(titulo: str, descricao: str) -> discord.Embed:
+    return discord.Embed(title=titulo, description=descricao, color=COR_FALHA)
+
+
+def embed_project_list(projetos: list[dict]) -> discord.Embed:
+    """Tabela compacta dos projetos. Discord embed aguenta ~25 linhas
+    razoavelmente; pra essa task isso é mais que suficiente."""
+    if not projetos:
+        return discord.Embed(
+            title="📂 Projetos",
+            description=(
+                "_Nenhum projeto registrado._\n\n"
+                "Use `/project add path:... slug:...` pra registrar."
+            ),
+            color=COR_GARAGEM,
+        )
+
+    MAX_LINHAS = 25
+    visiveis = projetos[:MAX_LINHAS]
+    linhas = [
+        f"`{p['slug']:<20}` `{p['mode']:<10}` `{p['path']}`"
+        for p in visiveis
+    ]
+    extras = len(projetos) - len(visiveis)
+    if extras > 0:
+        linhas.append(f"\n_+{extras} projeto(s) não exibido(s)_")
+    return discord.Embed(
+        title=f"📂 Projetos ({len(projetos)})",
+        description="\n".join(linhas),
+        color=COR_GARAGEM,
+    )

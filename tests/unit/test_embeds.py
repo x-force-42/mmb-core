@@ -23,6 +23,9 @@ from embeds import (
     embed_meeseeks_falha,
     embed_meeseeks_spawn,
     embed_meeseeks_working,
+    embed_project_erro,
+    embed_project_list,
+    embed_project_ok,
     embed_sucesso,
 )
 from meeseeks import MeeseeksResult
@@ -228,3 +231,38 @@ class TestEmbedSucesso:
         assert overflow is not None
         assert "continua no anexo" in embed.description
         assert len(embed.description) <= DESC_LIMIT
+
+
+# ─── /project ────────────────────────────────────────────────────────────
+
+class TestProjectEmbeds:
+    def test_ok_usa_cor_sucesso(self):
+        e = embed_project_ok("ok", "tudo certo")
+        assert e.color.value == COR_SUCESSO
+        assert e.description == "tudo certo"
+
+    def test_erro_usa_cor_falha(self):
+        e = embed_project_erro("erro", "deu ruim")
+        assert e.color.value == COR_FALHA
+
+    def test_list_vazio_mostra_dica(self):
+        e = embed_project_list([])
+        assert "Nenhum projeto" in e.description
+        assert "/project add" in e.description
+
+    def test_list_com_projetos_lista_slugs(self):
+        e = embed_project_list([
+            {"slug": "a", "mode": "pontual", "path": "/a"},
+            {"slug": "b", "mode": "construtor", "path": "/b"},
+        ])
+        assert "a" in e.description
+        assert "b" in e.description
+        assert "(2)" in e.title
+
+    def test_list_trunca_em_25(self):
+        muitos = [
+            {"slug": f"s{i}", "mode": "pontual", "path": f"/p{i}"}
+            for i in range(30)
+        ]
+        e = embed_project_list(muitos)
+        assert "+5 projeto" in e.description

@@ -21,9 +21,41 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import json
+import re
 import uuid
 
 from logger._db import get_connection
+
+
+# ─── exceções de domínio (projetos) ──────────────────────────────────────
+
+class ProjectError(Exception):
+    """Base de erros de validação/cadastro de projeto."""
+
+
+class SlugInvalido(ProjectError):
+    """Slug fora do formato kebab-case ou fora dos limites."""
+
+
+class SlugDuplicado(ProjectError):
+    """Já existe um projeto com esse slug (ativo ou inativo)."""
+
+
+class PathInexistente(ProjectError):
+    """O caminho informado não existe ou não é um diretório."""
+
+
+class PathNaoEhRepo(ProjectError):
+    """O caminho existe mas não contém `.git/` — não é repo git."""
+
+
+class ModoInvalido(ProjectError):
+    """`mode` fora de {'pontual', 'construtor'}."""
+
+
+_SLUG_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+_SLUG_MAX_LEN = 30
+_MODES_VALIDOS = {"pontual", "construtor"}
 
 
 # ─── entry dataclasses ───────────────────────────────────────────────────
@@ -76,6 +108,60 @@ class RunLogger:
 
     # ── projects ─────────────────────────────────────────────────────────
 
+    def register_project(
+        self,
+        *,
+        slug: str,
+        path: str,
+        name: str | None = None,
+        mode: str = "pontual",
+        repo_url: str | None = None,
+    ) -> dict:
+        """Cadastra um novo projeto com validação completa.
+
+        Levanta `SlugInvalido`, `SlugDuplicado`, `PathInexistente`,
+        `PathNaoEhRepo` ou `ModoInvalido`. Retorna o dict do projeto
+        recém-criado (linha do banco).
+        """
+        if not isinstance(slug, str) or not _SLUG_RE.match(slug):
+            raise SlugInvalido(
+                f"slug inválido: {slug!r}. Use kebab-case "
+                f"(letras minúsculas, dígitos e hífens; começa com letra)."
+            )
+        if len(slug) > _SLUG_MAX_LEN:
+            raise SlugInvalido(
+                f"slug muito longo ({len(slug)} chars); máximo {_SLUG_MAX_LEN}."
+            )
+        if mode not in _MODES_VALIDOS:
+            raise ModoInvalido(
+                f"mode inválido: {mode!r}. Use um de {sorted(_MODES_VALIDOS)}."
+            )
+
+        p = Path(path).expanduser()
+        if not p.exists() or not p.is_dir():
+            raise PathInexistente(f"path não existe ou não é diretório: {path}")
+        if not (p / ".git").exists():
+            raise PathNaoEhRepo(f"path não é repo git (sem .git/): {path}")
+
+        # Unicidade global: slug colide com ativo OU inativo.
+        existing = self._conn.execute(
+            "SELECT 1 FROM projects WHERE slug = ?", (slug,)
+        ).fetchone()
+        if existing:
+            raise SlugDuplicado(f"já existe um projeto com slug {slug!r}.")
+
+        project_id = _new_id()
+        self._conn.execute(
+            "INSERT INTO projects "
+            " (id, slug, name, path, repo_url, created_at, active, mode)"
+            " VALUES (?, ?, ?, ?, ?, ?, 1, ?)",
+            (project_id, slug, name or slug, str(p), repo_url, _now(), mode),
+        )
+        self._conn.commit()
+        return dict(self._conn.execute(
+            "SELECT * FROM projects WHERE id = ?", (project_id,)
+        ).fetchone())
+
     def ensure_project(
         self,
         *,
@@ -84,7 +170,13 @@ class RunLogger:
         path: str,
         repo_url: str | None = None,
     ) -> str:
-        """Upsert project by slug. Returns project id."""
+        """Upsert idempotente por slug. Mantido por compat com o seed
+        migracional do `on_ready` e com testes antigos.
+
+        Diferente de `register_project`, não valida path/git nem
+        levanta em duplicata — apenas devolve o id existente.
+        Para novos cadastros, use `register_project`.
+        """
         row = self._conn.execute(
             "SELECT id FROM projects WHERE slug = ?", (slug,)
         ).fetchone()
@@ -92,12 +184,29 @@ class RunLogger:
             return row["id"]
         project_id = _new_id()
         self._conn.execute(
-            "INSERT INTO projects (id, slug, name, path, repo_url, created_at)"
+            "INSERT INTO projects "
+            " (id, slug, name, path, repo_url, created_at)"
             " VALUES (?, ?, ?, ?, ?, ?)",
             (project_id, slug, name, path, repo_url, _now()),
         )
         self._conn.commit()
         return project_id
+
+    def get_project_by_slug(self, slug: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT * FROM projects WHERE slug = ?", (slug,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def deactivate_project(self, slug: str) -> bool:
+        """Soft delete: seta active=0. Retorna True se desativou,
+        False se o slug não existe ou já estava inativo."""
+        cur = self._conn.execute(
+            "UPDATE projects SET active = 0 WHERE slug = ? AND active = 1",
+            (slug,),
+        )
+        self._conn.commit()
+        return cur.rowcount > 0
 
     # ── runs ─────────────────────────────────────────────────────────────
 
@@ -275,10 +384,14 @@ class RunLogger:
         ).fetchall()
         return [dict(row) for row in rows], total
 
-    def list_projects(self) -> list[dict]:
-        rows = self._conn.execute(
-            "SELECT * FROM projects ORDER BY slug"
-        ).fetchall()
+    def list_projects(self, *, include_inactive: bool = False) -> list[dict]:
+        if include_inactive:
+            sql = "SELECT * FROM projects ORDER BY slug"
+            params: tuple = ()
+        else:
+            sql = "SELECT * FROM projects WHERE active = 1 ORDER BY slug"
+            params = ()
+        rows = self._conn.execute(sql, params).fetchall()
         return [dict(row) for row in rows]
 
     def update_run_review(

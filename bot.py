@@ -2,6 +2,7 @@ import asyncio
 import io
 import json
 import time
+from pathlib import Path
 from typing import Awaitable, Callable, TypeVar
 
 import discord
@@ -26,7 +27,13 @@ from config import (
     MMB_DB_PATH,
     TARGET_PROJECT_PATH,
 )
-from logger import DevServerEntry, GaragemEntry, MeeseeksEntry, RunLogger
+from logger import (
+    DevServerEntry,
+    GaragemEntry,
+    MeeseeksEntry,
+    ProjectError,
+    RunLogger,
+)
 from embeds import (
     embed_dev_server_falhou,
     embed_garagem_engasgou,
@@ -36,6 +43,9 @@ from embeds import (
     embed_meeseeks_falha,
     embed_meeseeks_spawn,
     embed_meeseeks_working,
+    embed_project_erro,
+    embed_project_list,
+    embed_project_ok,
     embed_sucesso,
 )
 from formatters import fmt_time
@@ -46,7 +56,6 @@ from meeseeks import MeeseeksResult, invocar_meeseeks, start_dev_server
 T = TypeVar("T")
 
 _logger = RunLogger(MMB_DB_PATH)
-_project_id: str = ""
 
 # Aquário (side-car visual). Pode ser None se desligado ou se a
 # inicialização falhou — `_emit_aquario` lida com isso.
@@ -82,17 +91,35 @@ class MeeseeksBox(discord.Client):
 client = MeeseeksBox()
 
 
-@client.event
-async def on_ready():
-    global _project_id, _aquario
-    _project_id = _logger.ensure_project(
-        slug=TARGET_PROJECT_PATH.name,
-        name=TARGET_PROJECT_PATH.name,
+def _seed_default_project_if_needed() -> None:
+    """Migração suave: se `TARGET_PROJECT_PATH` está setado e a tabela
+    `projects` está vazia, cadastra ele como projeto default.
+
+    Existe só pra usuários que rodavam o MMB pré-B1 — quem nunca rodou
+    cadastra via `/project add`. Pós-B1 o handler do `/meeseeks` resolve
+    o projeto sempre pelo slug informado em runtime.
+    """
+    if TARGET_PROJECT_PATH is None:
+        return
+    if _logger.list_projects(include_inactive=True):
+        return
+    slug = TARGET_PROJECT_PATH.name
+    _logger.ensure_project(
+        slug=slug,
+        name=slug,
         path=str(TARGET_PROJECT_PATH),
     )
+    print(f"[migração] projeto default registrado: {slug}")
+
+
+@client.event
+async def on_ready():
+    global _aquario
+    _seed_default_project_if_needed()
     print(f"Bot conectado como {client.user}")
-    print(f"Projeto-alvo: {TARGET_PROJECT_PATH}")
-    print(f"Logger: {MMB_DB_PATH} (project_id={_project_id[:8]}…)")
+    n = len(_logger.list_projects())
+    print(f"{n} projeto(s) ativo(s).")
+    print(f"Logger: {MMB_DB_PATH}")
 
     if AQUARIUM_ENABLED:
         try:
@@ -279,28 +306,30 @@ async def _send_garagem_no_slug(interaction, status_msg, tempo: str):
 
 
 async def _send_meeseeks_failure(
-    interaction, status_msg, m: MeeseeksResult, tempo: str
+    interaction, status_msg, m: MeeseeksResult, tempo: str, project_path: Path,
 ):
-    embed, overflow = embed_meeseeks_falha(m, tempo, TARGET_PROJECT_PATH)
+    embed, overflow = embed_meeseeks_falha(m, tempo, project_path)
     await _try_edit(status_msg, embed)
     await _send_embed(interaction, embed, overflow, "meeseeks-fail.md")
 
 
 async def _send_dev_server_failure(
-    interaction, status_msg, m: MeeseeksResult, error: Exception, tempo: str
+    interaction, status_msg, m: MeeseeksResult, error: Exception, tempo: str,
+    project_path: Path,
 ):
     embed, overflow = embed_dev_server_falhou(
-        m, error, tempo, TARGET_PROJECT_PATH
+        m, error, tempo, project_path
     )
     await _try_edit(status_msg, embed)
     await _send_embed(interaction, embed, overflow, "meeseeks-report.md")
 
 
 async def _send_success(
-    interaction, status_msg, m: MeeseeksResult, tempo: str, dev_port: int
+    interaction, status_msg, m: MeeseeksResult, tempo: str, dev_port: int,
+    project_path: Path,
 ):
     embed, overflow = embed_sucesso(
-        m, dev_port, tempo, TARGET_PROJECT_PATH
+        m, dev_port, tempo, project_path
     )
     await _try_edit(status_msg, embed)
     await _send_embed(interaction, embed, overflow, "meeseeks-report.md")
@@ -347,14 +376,132 @@ def _meeseeks_entry(
     )
 
 
-# ─── comando ─────────────────────────────────────────────────────────────
+# ─── /project ────────────────────────────────────────────────────────────
+# Fachada fina sobre a API do RunLogger. Toda validação vive no logger;
+# aqui só traduzimos ProjectError em embed e enviamos.
+
+project_group = app_commands.Group(
+    name="project", description="Gerenciar projetos do MMB"
+)
+
+
+@project_group.command(name="add", description="Cadastra um novo projeto")
+@app_commands.describe(
+    path="Caminho absoluto do repo git (precisa conter .git/)",
+    slug="Identificador curto kebab-case (≤30 chars)",
+    name="Nome amigável (default = slug)",
+    mode="Modo de operação (default = pontual)",
+)
+@app_commands.choices(mode=[
+    app_commands.Choice(name="pontual", value="pontual"),
+    app_commands.Choice(name="construtor", value="construtor"),
+])
+async def project_add(
+    interaction: discord.Interaction,
+    path: str,
+    slug: str,
+    name: str = "",
+    mode: app_commands.Choice[str] | None = None,
+):
+    try:
+        proj = _logger.register_project(
+            slug=slug,
+            path=path,
+            name=name or None,
+            mode=mode.value if mode else "pontual",
+        )
+    except ProjectError as e:
+        await interaction.response.send_message(
+            embed=embed_project_erro(
+                "📂 Projeto não cadastrado", str(e)
+            ),
+            ephemeral=True,
+        )
+        return
+    await interaction.response.send_message(
+        embed=embed_project_ok(
+            "📂 Projeto cadastrado",
+            f"`{proj['slug']}` (`{proj['mode']}`) → `{proj['path']}`",
+        )
+    )
+
+
+@project_group.command(name="list", description="Lista os projetos ativos")
+async def project_list(interaction: discord.Interaction):
+    projetos = _logger.list_projects()
+    await interaction.response.send_message(embed=embed_project_list(projetos))
+
+
+@project_group.command(name="remove", description="Desativa um projeto (soft delete)")
+@app_commands.describe(slug="Slug do projeto a desativar")
+async def project_remove(interaction: discord.Interaction, slug: str):
+    ok = _logger.deactivate_project(slug)
+    if ok:
+        await interaction.response.send_message(
+            embed=embed_project_ok(
+                "📂 Projeto desativado",
+                f"`{slug}` não aparece mais em `/project list` "
+                f"nem no autocomplete do `/meeseeks`. Histórico preservado.",
+            )
+        )
+    else:
+        await interaction.response.send_message(
+            embed=embed_project_erro(
+                "📂 Nada a desativar",
+                f"Slug `{slug}` não está ativo (não existe ou já estava inativo).",
+            ),
+            ephemeral=True,
+        )
+
+
+client.tree.add_command(project_group)
+
+
+# ─── /meeseeks ───────────────────────────────────────────────────────────
+
+async def _projeto_autocomplete(
+    interaction: discord.Interaction, current: str
+) -> list[app_commands.Choice[str]]:
+    """Completa o parâmetro `projeto:` com slugs ativos. Limite 25
+    (regra do Discord)."""
+    projetos = _logger.list_projects()
+    filtrados = [
+        p for p in projetos if current.lower() in p["slug"].lower()
+    ]
+    return [
+        app_commands.Choice(name=p["slug"], value=p["slug"])
+        for p in filtrados[:25]
+    ]
+
 
 @client.tree.command(
     name="meeseeks",
     description="Invoca um Mr. Meeseeks pra cumprir uma tarefa",
 )
-@app_commands.describe(task="O que voce precisa que seja feito")
-async def meeseeks(interaction: discord.Interaction, task: str):
+@app_commands.describe(
+    projeto="Slug do projeto-alvo (use /project list pra ver)",
+    task="O que voce precisa que seja feito",
+)
+@app_commands.autocomplete(projeto=_projeto_autocomplete)
+async def meeseeks(
+    interaction: discord.Interaction, projeto: str, task: str
+):
+    # Resolve projeto ANTES de qualquer defer/followup pra que erros
+    # de slug sejam respondidos ephemeralmente, sem poluir o canal.
+    proj = _logger.get_project_by_slug(projeto)
+    if proj is None or not proj["active"]:
+        await interaction.response.send_message(
+            embed=embed_project_erro(
+                "📂 Projeto não encontrado",
+                f"Slug `{projeto}` não está ativo. "
+                f"Use `/project list` pra ver os disponíveis.",
+            ),
+            ephemeral=True,
+        )
+        return
+
+    project_path = Path(proj["path"])
+
     try:
         await interaction.response.defer(thinking=True)
     except NotFound:
@@ -369,13 +516,13 @@ async def meeseeks(interaction: discord.Interaction, task: str):
         print(f"[warn] followup falhou após defer (task={task!r})")
         return
 
-    run_id = _logger.start_run(project_id=_project_id, task_raw=task)
+    run_id = _logger.start_run(project_id=proj["id"], task_raw=task)
 
     # ── Garagem ──
     g, g_elapsed = await _run_with_heartbeat(
         status_msg,
         lambda elapsed: embed_garagem_working(task, elapsed),
-        invocar_garagem(task, TARGET_PROJECT_PATH),
+        invocar_garagem(task, project_path),
     )
     g_tempo = fmt_time(g_elapsed)
 
@@ -415,7 +562,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     m, m_elapsed = await _run_with_heartbeat(
         status_msg,
         lambda elapsed: embed_meeseeks_working(slug, elapsed),
-        invocar_meeseeks(parsed, TARGET_PROJECT_PATH),
+        invocar_meeseeks(parsed, project_path),
         on_tick=lambda elapsed: _aquario_tick(aquario_id, elapsed),
     )
     m_tempo = fmt_time(m_elapsed)
@@ -427,7 +574,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
                            total_elapsed_s=total_elapsed)
         _aquario_die(aquario_id, "meeseeks_failure")
         return await _send_meeseeks_failure(
-            interaction, status_msg, m, m_tempo
+            interaction, status_msg, m, m_tempo, project_path
         )
 
     _logger.record_meeseeks(run_id, _meeseeks_entry(m, m_elapsed, "success"))
@@ -441,7 +588,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
                            total_elapsed_s=total_elapsed)
         _aquario_die(aquario_id, "dev_server_failure")
         return await _send_dev_server_failure(
-            interaction, status_msg, m, e, m_tempo
+            interaction, status_msg, m, e, m_tempo, project_path
         )
 
     _logger.record_dev_server(run_id, DevServerEntry(outcome="success", port=dev_port))
@@ -449,7 +596,9 @@ async def meeseeks(interaction: discord.Interaction, task: str):
                        total_elapsed_s=total_elapsed)
     _aquario_die(aquario_id, "success")
 
-    await _send_success(interaction, status_msg, m, m_tempo, dev_port)
+    await _send_success(
+        interaction, status_msg, m, m_tempo, dev_port, project_path
+    )
 
 
 if __name__ == "__main__":
