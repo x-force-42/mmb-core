@@ -82,17 +82,41 @@ class MeeseeksBox(discord.Client):
 client = MeeseeksBox()
 
 
+def _seed_default_project_if_needed() -> str:
+    """Migração suave: se `TARGET_PROJECT_PATH` está setado e a tabela
+    `projects` está vazia, cadastra ele como projeto default e retorna
+    o id. Se já tem projetos, devolve o id do projeto cujo slug == nome
+    do path (mantém comportamento mono-projeto da versão pré-B1).
+    Se TARGET_PROJECT_PATH é None: devolve "" — bot fica multi-projeto
+    puro, requer cadastro via /project add.
+    """
+    if TARGET_PROJECT_PATH is None:
+        return ""
+    slug = TARGET_PROJECT_PATH.name
+    if not _logger.list_projects():
+        pid = _logger.ensure_project(
+            slug=slug,
+            name=slug,
+            path=str(TARGET_PROJECT_PATH),
+        )
+        print(f"[migração] projeto default registrado: {slug}")
+        return pid
+    proj = _logger.get_project_by_slug(slug)
+    return proj["id"] if proj else ""
+
+
 @client.event
 async def on_ready():
     global _project_id, _aquario
-    _project_id = _logger.ensure_project(
-        slug=TARGET_PROJECT_PATH.name,
-        name=TARGET_PROJECT_PATH.name,
-        path=str(TARGET_PROJECT_PATH),
-    )
+    _project_id = _seed_default_project_if_needed()
     print(f"Bot conectado como {client.user}")
-    print(f"Projeto-alvo: {TARGET_PROJECT_PATH}")
-    print(f"Logger: {MMB_DB_PATH} (project_id={_project_id[:8]}…)")
+    if _project_id:
+        proj = _logger.get_project(_project_id)
+        print(f"Projeto default (seed): {proj['slug']} → {proj['path']}")
+    else:
+        n = len(_logger.list_projects())
+        print(f"Sem projeto default. {n} projeto(s) registrado(s).")
+    print(f"Logger: {MMB_DB_PATH}")
 
     if AQUARIUM_ENABLED:
         try:

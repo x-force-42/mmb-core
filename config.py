@@ -6,9 +6,13 @@ load_dotenv()
 
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 DISCORD_GUILD_ID = os.getenv("DISCORD_GUILD_ID")
-TARGET_PROJECT_PATH = Path(
-    os.getenv("TARGET_PROJECT_PATH", "~/vnt/ASUS/jogo")
-).expanduser()
+# Pós-B1: opcional. Se setado e a tabela `projects` estiver vazia
+# no `on_ready`, o bot faz seed migracional do projeto default. O
+# fluxo runtime usa registro multi-projeto, não esta variável.
+_raw_target = os.getenv("TARGET_PROJECT_PATH")
+TARGET_PROJECT_PATH: Path | None = (
+    Path(_raw_target).expanduser() if _raw_target else None
+)
 CLAUDE_CLI = os.getenv("CLAUDE_CLI", "claude")
 GARAGEM_TIMEOUT_S = int(os.getenv("GARAGEM_TIMEOUT_S", "300"))
 MEESEEKS_TIMEOUT_S = int(os.getenv("MEESEEKS_TIMEOUT_S", "1800"))
@@ -32,5 +36,5 @@ AQUARIUM_WS_URL = os.getenv("AQUARIUM_WS_URL", "ws://localhost:8080/ws")
 
 if not DISCORD_BOT_TOKEN:
     raise RuntimeError("DISCORD_BOT_TOKEN não setado no .env")
-if not TARGET_PROJECT_PATH.exists():
+if TARGET_PROJECT_PATH is not None and not TARGET_PROJECT_PATH.exists():
     raise RuntimeError(f"TARGET_PROJECT_PATH não existe: {TARGET_PROJECT_PATH}")
