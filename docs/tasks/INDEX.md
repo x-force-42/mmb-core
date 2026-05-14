@@ -20,11 +20,10 @@ o que quer fazer? Siga:
 
 | ID | Título | Trilha | Status | Brief |
 |---|---|---|---|---|
-| **B1** | Multi-projeto pontual (cadastro + lookup runtime + campo `mode`) | B — Plataforma | 🚧 em PR | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) + [`B1-plano.md`](B1-plano.md) |
 | A2 | Identidade visual (Camada C+E) | A — Presença | ⬜ não iniciado | (sem brief) |
-| A3 | Aquário multi-projeto | A — Presença | 🔒 bloqueado por B1 | (sem brief) |
+| **A3** | Aquário multi-projeto | A — Presença | 🎯 desbloqueado por B1 | (sem brief — gerar quando turno chegar) |
 | B2 | Sessão Claude persistente da Garagem + compactação + modelo por modo | B — Plataforma | 🔒 bloqueado por B3 | (sem brief — gerar quando turno chegar) |
-| B3 | Bootstrap interview + geração de camada agêntica no alvo | B — Plataforma | 🔒 bloqueado por B1 | (sem brief — gerar quando turno chegar) |
+| **B3** | Bootstrap interview + geração de camada agêntica no alvo | B — Plataforma | 🎯 desbloqueado por B1 | (sem brief — gerar quando turno chegar) |
 | B4 | Proatividade (scheduler + canal proativo do construtor) | B — Plataforma | 🔒 bloqueado por B2 | (sem brief — gerar quando turno chegar) |
 | B5 | Promoção orgânica (detecção de sinais pontual → construtor) | B — Plataforma | 🔒 bloqueado por B2 | (sem brief — gerar quando turno chegar) |
 | C3 | Cenário E2E anti-escopo | C — Robustez | ⬜ não iniciado | (sem brief) |
@@ -36,15 +35,25 @@ o que quer fazer? Siga:
 | ~~E0~~ | Discovery — Cockpit de Operações | E — Cockpit | ✅ fechado em 2026-05-14 | [`E0-discovery-cockpit.md`](E0-discovery-cockpit.md) |
 | ~~E1~~ | API do Cockpit de Operações | E — Cockpit | ✅ fechado em `f2aa145` | [`E1-api-cockpit.md`](E1-api-cockpit.md) |
 | ~~B-discovery~~ | Discovery — Modos de operação (Trilha B) | B — Plataforma | ✅ fechado em 2026-05-14 | [`B-discovery-modos.md`](B-discovery-modos.md) |
+| ~~B1~~ | Multi-projeto pontual (cadastro + lookup runtime + campo `mode`) | B — Plataforma | ✅ fechado em `286b544` | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) + [`B1-plano.md`](B1-plano.md) |
 
 ## Matriz de paralelismo
 
-Pós-A1 e E1 mergeadas, **só sobra B1** como 🎯 ativa. Sem matriz
-significativa por enquanto — qualquer task nova que abrir e tocar
-`bot.py`, `logger/` ou `config.py` precisa coordenar com B1.
+Pós-B1 mergeada, dois 🎯 desbloqueados — **A3 e B3**.
 
-C3 (só cria em `tests/e2e/scenarios/`) e C4 (depende de C2, só lê
-logger) seguem compatíveis com B1 sem conflito.
+| | A3 | B3 |
+|---|---|---|
+| **A3** | — | ⚠️ ambos tocam `bot.py` |
+| **B3** | ⚠️ ambos tocam `bot.py` | — |
+
+Recomendação: sequencial. A3 é mais leve (só adiciona campo
+`project` no payload do aquário, agora que projetos existem como
+entidade). B3 é mais profundo (entrevista, geração de arquivos no
+alvo, novo módulo). Comece pela A3 — fecha trilha A imediata e
+libera bot.py rápido pra B3.
+
+C3 (só `tests/e2e/scenarios/`) e C4 (só lê logger) continuam
+compatíveis com qualquer combinação.
 
 ## Como criar uma task nova
 

@@ -5,6 +5,65 @@ Mais recente no topo.
 
 ---
 
+## 2026-05-14 — B1 fechado · MMB virou multi-projeto
+
+### B1 entregue (commit `286b544`, sequência de 7 commits granulares)
+
+Sétima task externa via PROTOCOLO. Maior entrega em volume até agora:
+**+52 testes** (suite sobe de 280 → 332). Granularidade de commit
+exemplar — um conceito por commit, padrão do `git log` respeitado.
+
+Sequência de commits do agente:
+
+1. `5d35cd4 feat(logger): colunas active e mode em projects`
+2. `9c7eaa3 feat(logger): API de projetos com validação centralizada`
+3. `915fcb9 refactor(config,bot): TARGET_PROJECT_PATH vira opcional`
+4. `a2953d6 feat(bot): comandos /project add | list | remove`
+5. `94bfa5f feat(bot): /meeseeks projeto: resolve por slug em runtime`
+6. `a324a73 test(api,b1): expõe active/mode em ProjectItem`
+7. `286b544 feat: projetos como cidadão de 1ª classe (#B1)` (merge)
+
+Resultado: MMB agora suporta multi-projeto de verdade.
+
+- `/project add path:X slug:Y [name:Z] [mode:pontual|construtor]`
+  cadastra. Default `pontual`.
+- `/project list` exibe tabela com slug, nome, path, mode.
+- `/project remove slug:X` soft-deleta via `active=0`.
+- `/meeseeks projeto:X task:Y` resolve `path` em runtime via
+  autocomplete. Único projeto cadastrado dispensa parâmetro.
+- `TARGET_PROJECT_PATH` virou seed migracional retrocompatível —
+  bot existente continua funcionando sem mudança de env.
+- Tabela `projects` ganhou colunas `active INTEGER NOT NULL
+  DEFAULT 1` e `mode TEXT NOT NULL DEFAULT 'pontual'`. Migração
+  via `ALTER TABLE` idempotente no `get_connection`.
+
+### Padrão novo observado: brief + plano
+
+O agente criou `docs/tasks/B1-plano.md` (289 linhas) **antes** de
+implementar — plano de execução detalhado complementar ao brief.
+Não tinha precedente. Vale observar se vira padrão e se ajuda
+qualidade. Provável que sim em tasks com volume — força "pensar
+antes de codar".
+
+### Implicações práticas
+
+- **A3 desbloqueado**: aquário multi-projeto agora pode adicionar
+  `project` ao payload (`projects` é entidade real).
+- **B3 desbloqueado**: bootstrap interview tem onde escrever o
+  modo do projeto.
+- **Cockpit** (mmb-cockpit) continua independente — F0 já
+  entregue lá, F1+F2 paralelizáveis na próxima rodada.
+- **Trilha A inteira de novo a um passo do fim** — só A3 sobra
+  como 🎯, e ela é simples (adicionar 1 campo no payload).
+
+### Estado dos branches
+
+Worktrees pendentes cleanup (não bloqueia nada):
+`task/C1`, `task/C2`, `task/A1`, `task/E1`, `task/B1`. Rodar
+`scripts/task-end.sh` em sequência quando der vontade.
+
+---
+
 ## 2026-05-14 — discovery dos modos · trilha B explode em 5
 
 Conversa de discovery com o Rick consolidou uma virada importante

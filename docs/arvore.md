@@ -37,30 +37,34 @@ Obsidian e similares.
 
 ## Onde estamos
 
-Estado pós-A1: bot Discord agora **empurra eventos pro aquário ao
-vivo** via WebSocket (`born` → `state` periódico → `freaking_out`
-quando passa de 15min → `died_*` no fim). Pipeline ponta-a-ponta
-contra um único `TARGET_PROJECT_PATH`. Observabilidade gravada em
-SQLite + API REST do cockpit (E1) + presença visual em tempo real
-(A1). E2E cobre 3 fases do `PipelineResult`.
+Estado pós-B1: **MMB é oficialmente multi-projeto**. Rick pode
+cadastrar N projetos via `/project add`, cada um com modo
+(`pontual` default ou `construtor`). `/meeseeks` ganha parâmetro
+`projeto:` com autocomplete. `TARGET_PROJECT_PATH` virou seed
+migracional retrocompatível.
 
-**Trilhas A e C inteiras fechadas** (A1 + C1 + C2). E0 + E1 também.
-Total **6 tasks entregues por agentes externos** em ciclo completo
-de delegação — todas via PROTOCOLO.md, sem intervenção pontual.
+**Trilhas A + C inteiras fechadas**, E0+E1 também, B-discovery+B1
+também. Total **7 tasks entregues por agentes externos** via
+PROTOCOLO.md. Suite: 332 testes verdes.
 
-**Agora**: só B1 sobra como 🎯 ready. Em paralelo com B1, dá pra
-abrir **E2** (frontend cockpit no `~/llab/mmb-cockpit`, repo
-criado em `629e681`/`d5b913a`, F0 do scaffold pronto pra delegar).
+**Agora**: dois 🎯 desbloqueados — **A3** (aquário multi-projeto,
+adiciona `project` no payload) e **B3** (bootstrap interview +
+camada agêntica no alvo). Ambos tocam `bot.py`, então sequencial.
+A3 antes — fecha trilha A imediata.
+
+Em paralelo (zero conflito), **mmb-cockpit avança rápido** — F0
+mergeado, F1+F2 prontos pra paralelizar.
 
 Trilha D (orquestrador + bootstrap agêntico) continua em design.
 
 ```
-PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
-●━●━●━●━●━●━●━●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ →
-                            ↑
-                  Trilhas A + C + E0+E1 fechadas
-                  B1 pendente · mmb-cockpit bootstrappado
-                  v0.5.0+ candidato sólido
+PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
+●━●━●━●━●━●━●━●━●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ →
+                              ↑
+                    A + C + E0/E1 + B-discovery + B1 ✅
+                    A3 e B3 🎯 · construtor próximo
+                    cockpit em rampa paralela
+                    v0.5.0+ sólido
 ```
 
 ---
@@ -120,7 +124,10 @@ gitGraph
    commit id: "f2aa145"
    commit id: "8cba014"
    commit id: "8480c26"
-   commit id: "3287a49" type: HIGHLIGHT
+   commit id: "3287a49"
+   commit id: "4d8a684"
+   commit id: "63dc801"
+   commit id: "286b544" type: HIGHLIGHT
 ```
 
 > A tag `v0.5.0` ainda não foi cravada. Pronta quando você quiser.
@@ -156,12 +163,14 @@ mindmap
         Fechado em 2026-05-14
         11 decisões consolidadas
         Reframe: B1 sozinho virou B1-B5
-      🎯 B1 Multi-projeto pontual base
-        Comando /project add list remove
-        Coluna mode TEXT default pontual
-        Discord autocomplete de projeto
-        Runtime lookup substitui TARGET_PROJECT_PATH
-      🔒 B3 Bootstrap interview construtor
+      ✅ B1 Multi-projeto pontual base
+        commit 286b544
+        7 commits granulares · +52 testes
+        /project add list remove + autocomplete
+        Colunas active + mode na tabela projects
+        Migração idempotente via ALTER
+        TARGET_PROJECT_PATH virou seed migracional
+      🎯 B3 Bootstrap interview construtor
         Gera camada agêntica mínima no alvo
           AGENTS.md
           .mmb/contexto.md
@@ -233,11 +242,11 @@ flowchart LR
 
   A1[✅ A1 Aquário mono]:::done
   A2[⬜ A2 Camadas C+E]:::todo
-  A3[🔒 A3 Aquário multi]:::locked
+  A3[🎯 A3 Aquário multi]:::ready
 
   Bd[✅ B-discovery Modos]:::done
-  B1[🎯 B1 Multi-projeto pontual]:::ready
-  B3[🔒 B3 Bootstrap interview]:::locked
+  B1[✅ B1 Multi-projeto pontual]:::done
+  B3[🎯 B3 Bootstrap interview]:::ready
   B2[🔒 B2 Sessão persistente]:::locked
   B5[🔒 B5 Promoção orgânica]:::locked
   B4[🔒 B4 Proatividade]:::locked
