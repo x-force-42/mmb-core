@@ -1,3 +1,6 @@
+> **⚠️ Arquivado (método v2).** O método atual vive em
+> `/MMB/.tooling/profiles/`. Mantido como referência histórica.
+
 # Orquestrador — modus operandi do MMB
 
 Doc espelho de [`tasks/PROTOCOLO.md`](tasks/PROTOCOLO.md): aquele
@@ -101,7 +104,7 @@ juntos.
 
 ### 5. Provisionamento da worktree
 
-Rick roda `scripts/task-start.sh <id>`. Script:
+Rick roda `/MMB/.tooling/bin/task-start.sh mmb-core <id>`. Script:
 
 - Atualiza `master` (`git pull` se houver remoto, senão skip).
 - Cria worktree em `.worktrees/<id>-<slug>/` com branch
