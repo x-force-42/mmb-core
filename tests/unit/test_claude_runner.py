@@ -83,6 +83,31 @@ def _patch_spawn(monkeypatch, proc=None, raise_exc=None):
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake)
 
 
+def _patch_spawn_sequence(monkeypatch, responses):
+    """Mocka create_subprocess_exec com uma SEQUÊNCIA de respostas.
+
+    Cada item em `responses` é consumido em ordem a cada chamada.
+    Item pode ser: uma instância de BaseException (será levantada)
+    ou um _FakeProc (será devolvido).
+
+    Devolve a lista `calls` que acumula 1 entrada por chamada feita
+    — útil pra assert que retry ocorreu (ou não) o número esperado
+    de vezes.
+    """
+    iterator = iter(responses)
+    calls: list = []
+
+    async def fake(*args, **kwargs):
+        calls.append({"args": args, "kwargs": kwargs})
+        nxt = next(iterator)
+        if isinstance(nxt, BaseException):
+            raise nxt
+        return nxt
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake)
+    return calls
+
+
 def _envelope(
     result: str,
     *,
@@ -334,3 +359,99 @@ class TestRunClaudePCommandConstruction:
         )
 
         assert captured["env"].get("DISABLE_AUTOUPDATER") == "1"
+
+
+# ─── retry transiente (auto-update do CLI) ───────────────────────────────
+
+class TestRunClaudePRetry:
+    """Retry só pra duas assinaturas de erro:
+    - FileNotFoundError no spawn (binário sumiu)
+    - exit code != 0 com 'No claude executable found' no stderr
+
+    Tudo mais (timeout, exit code genérico, envelope ruim) NÃO retenta.
+    Os testes passam _retry_delays=(0.0, 0.0) pra não esperar de verdade.
+    """
+
+    async def test_recovers_from_filenotfound_on_retry(self, monkeypatch):
+        proc_ok = _FakeProc(stdout=_envelope("ok"), returncode=0)
+        calls = _patch_spawn_sequence(
+            monkeypatch, [FileNotFoundError(), proc_ok]
+        )
+
+        r = await run_claude_p(
+            user_prompt="x", system_prompt="y",
+            cwd=Path("/tmp"), timeout=5,
+            _retry_delays=(0.0, 0.0),
+        )
+
+        assert r.error is None
+        assert r.output == "ok"
+        assert len(calls) == 2
+
+    async def test_recovers_from_exit2_autoupdate_on_retry(self, monkeypatch):
+        bad = _FakeProc(
+            stdout=b"",
+            stderr=b"No claude executable found for nodejs 20.10.0",
+            returncode=2,
+        )
+        good = _FakeProc(stdout=_envelope("ok"), returncode=0)
+        calls = _patch_spawn_sequence(monkeypatch, [bad, good])
+
+        r = await run_claude_p(
+            user_prompt="x", system_prompt="y",
+            cwd=Path("/tmp"), timeout=5,
+            _retry_delays=(0.0, 0.0),
+        )
+
+        assert r.error is None
+        assert r.output == "ok"
+        assert len(calls) == 2
+
+    async def test_gives_up_after_max_retries(self, monkeypatch):
+        # 3 tentativas (1 inicial + 2 retries), todas em estado transiente.
+        calls = _patch_spawn_sequence(
+            monkeypatch,
+            [FileNotFoundError(), FileNotFoundError(), FileNotFoundError()],
+        )
+
+        r = await run_claude_p(
+            user_prompt="x", system_prompt="y",
+            cwd=Path("/tmp"), timeout=5,
+            _retry_delays=(0.0, 0.0),
+        )
+
+        assert r.output == ""
+        assert "auto-update" in r.error
+        assert "3 tentativas" in r.error
+        assert len(calls) == 3
+
+    async def test_no_retry_on_real_exit_code(self, monkeypatch):
+        """Exit 1 sem mensagem de auto-update no stderr não dispara retry."""
+        proc = _FakeProc(
+            stdout=b"",
+            stderr=b"genuine error unrelated to autoupdate",
+            returncode=1,
+        )
+        calls = _patch_spawn_sequence(monkeypatch, [proc])
+
+        r = await run_claude_p(
+            user_prompt="x", system_prompt="y",
+            cwd=Path("/tmp"), timeout=5,
+            _retry_delays=(0.0, 0.0),
+        )
+
+        assert "exit code 1" in r.error
+        assert len(calls) == 1
+
+    async def test_no_retry_on_timeout(self, monkeypatch):
+        proc = _FakeProc(communicate_delay=0.1)
+        calls = _patch_spawn_sequence(monkeypatch, [proc])
+
+        r = await run_claude_p(
+            user_prompt="x", system_prompt="y",
+            cwd=Path("/tmp"), timeout=0.01,
+            _retry_delays=(0.0, 0.0),
+        )
+
+        assert "timeout" in r.error
+        assert len(calls) == 1

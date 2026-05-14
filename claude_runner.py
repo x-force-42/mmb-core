@@ -7,6 +7,8 @@ Centraliza:
 - timeout
 - check de returncode
 - parse do envelope JSON do CLI
+- retry curto na janela transiente do auto-updater (ver
+  RETRY_DELAYS abaixo)
 
 Cada caller (Garagem, Meeseeks) passa user_prompt, system_prompt,
 cwd, timeout e flags específicas; recebe um ClaudeRunResult com
@@ -16,10 +18,26 @@ o `output` (envelope.result) ou um `error` estruturado.
 import asyncio
 import json
 import os
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from config import CLAUDE_CLI
+
+
+# Delays (em segundos) ENTRE tentativas, aplicados apenas quando o
+# erro casa com _is_transient_autoupdate. Total de tentativas =
+# 1 + len(RETRY_DELAYS). Latência adicional no pior caso = soma dos
+# valores (~4.5s).
+#
+# Por que valores fixos: o race do auto-updater dura tipicamente
+# poucos segundos. Backoff curto cobre a maior parte sem virar
+# espera longa quando o problema é outro.
+RETRY_DELAYS: tuple[float, ...] = (1.5, 3.0)
+
+# Marcador no stderr do CLI quando o symlink aponta pra um binário
+# que não existe mais (sintoma típico de auto-update em curso).
+_AUTOUPDATE_STDERR_HINT = "No claude executable found"
 
 
 @dataclass
@@ -30,6 +48,27 @@ class ClaudeRunResult:
     tokens_input: int | None = None
     tokens_output: int | None = None
     cost_usd: float | None = None
+
+
+def _is_transient_autoupdate(r: ClaudeRunResult) -> bool:
+    """True quando o erro casa com o sintoma de auto-update em curso.
+
+    Dois sinais possíveis:
+    - FileNotFoundError no spawn → produz `error` contendo "indisponível"
+      (ver _run_claude_p_once).
+    - Exit code não-zero com stderr contendo "No claude executable found"
+      → Node achou o wrapper mas não a versão dele pra esse Node.
+
+    Qualquer outra falha (timeout, exit code genérico, envelope JSON
+    inválido) NÃO é transiente — sinaliza problema real.
+    """
+    if r.error is None:
+        return False
+    if "indisponível" in r.error:
+        return True
+    if r.error.startswith("claude exit code") and _AUTOUPDATE_STDERR_HINT in r.raw:
+        return True
+    return False
 
 
 def load_system_prompt(path: Path) -> str:
@@ -55,10 +94,70 @@ async def run_claude_p(
     timeout: int,
     extra_args: list[str] | None = None,
     cli_path: str | None = None,
+    _retry_delays: tuple[float, ...] = RETRY_DELAYS,
 ) -> ClaudeRunResult:
     """Roda `claude -p` com output JSON e devolve o envelope parseado.
 
+    Aplica retry curto se o erro casar com auto-update transiente
+    (ver _is_transient_autoupdate); qualquer outra falha é devolvida
+    imediatamente.
+
     Parâmetros são keyword-only pra deixar callsites legíveis.
+    `_retry_delays` é underscored porque é hook interno pra teste —
+    callers de produção devem usar o default.
+    """
+    attempts = 1 + len(_retry_delays)
+    last: ClaudeRunResult | None = None
+
+    for attempt_idx in range(attempts):
+        if attempt_idx > 0:
+            await asyncio.sleep(_retry_delays[attempt_idx - 1])
+
+        last = await _run_claude_p_once(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            cwd=cwd,
+            timeout=timeout,
+            extra_args=extra_args,
+            cli_path=cli_path,
+        )
+
+        if not _is_transient_autoupdate(last):
+            return last
+
+        if attempt_idx + 1 < attempts:
+            print(
+                f"[warn] claude_runner: tentativa {attempt_idx + 1}/{attempts} "
+                f"caiu em estado transiente ({last.error!r}); retentando em "
+                f"{_retry_delays[attempt_idx]:.1f}s",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    assert last is not None  # loop sempre roda pelo menos 1x
+    return ClaudeRunResult(
+        output="",
+        error=(
+            f"auto-update do claude em curso — {attempts} tentativas "
+            f"esgotadas. Último erro: {last.error}"
+        ),
+        raw=last.raw,
+    )
+
+
+async def _run_claude_p_once(
+    *,
+    user_prompt: str,
+    system_prompt: str,
+    cwd: Path,
+    timeout: int,
+    extra_args: list[str] | None,
+    cli_path: str | None,
+) -> ClaudeRunResult:
+    """Uma única tentativa de spawn+comunicar+parsear. Sem retry.
+
+    Separada de run_claude_p pra que o retry orquestre múltiplas
+    chamadas sem duplicar lógica.
     """
     cmd = [
         cli_path or CLAUDE_CLI,
