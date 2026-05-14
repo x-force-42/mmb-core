@@ -152,6 +152,14 @@ mindmap
         Meeseeks Sonnet 4.6 explícito
         Config via env por fase
         Independente de B1/B2 · pode ir junto
+    Trilha E · Cockpit de Operações
+      🟡 E0 Discovery cockpit
+        Em curso · conversação ativa
+        Output: este doc preenchido + briefs E1+ implementáveis
+      🔒 E1+ Implementação
+        Definida após E0 fechar
+        Read-only sobre logger SQLite
+        Zero coupling com bot.py
     Trilha C · Robustez
       ✅ C1 Retry transiente no runner
         commit b530cca
@@ -180,6 +188,7 @@ mindmap
 flowchart LR
   classDef ready  fill:#cfa,stroke:#393,stroke-width:2px
   classDef done   fill:#9d9,stroke:#171,stroke-width:2px,color:#000
+  classDef wip    fill:#ffe680,stroke:#cc9900,stroke-width:2px,color:#000
   classDef todo   fill:#eee,stroke:#999
   classDef locked fill:#ccc,stroke:#666,stroke-dasharray:4
 
@@ -195,6 +204,12 @@ flowchart LR
   C2[✅ C2 E2E erro]:::done
   C3[⬜ C3 E2E anti-escopo]:::todo
   C4[⬜ C4 Calibração real]:::todo
+
+  E0[🟡 E0 Discovery cockpit]:::wip
+  E1[🔒 E1+ Impl cockpit]:::locked
+
+  E0 --> E1
+  B1 -.consome.-> E1
 
   B1 --> A3
   B1 --> B2

@@ -22,12 +22,14 @@ o que quer fazer? Siga:
 |---|---|---|---|---|
 | **A1** | Aquário mono-projeto | A — Presença | 🎯 pronto | [`A1-aquario-mono.md`](A1-aquario-mono.md) |
 | **B1** | Projetos como cidadão 1ª classe | B — Plataforma | 🎯 pronto | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) |
+| **E0** | Discovery — Cockpit de Operações | E — Cockpit | 🟡 em curso (conversação) | [`E0-discovery-cockpit.md`](E0-discovery-cockpit.md) |
 | A2 | Identidade visual (Camada C+E) | A — Presença | ⬜ não iniciado | (sem brief) |
 | A3 | Aquário multi-projeto | A — Presença | 🔒 bloqueado por B1 | (sem brief) |
 | B2 | Garagem com contexto persistente | B — Plataforma | ⬜ decisão em aberto | (sem brief) |
 | B3 | Modelo por fase (Opus Garagem, Sonnet Meeseeks) | B — Plataforma | ⬜ não iniciado | (sem brief) |
 | C3 | Cenário E2E anti-escopo | C — Robustez | ⬜ não iniciado | (sem brief) |
 | C4 | Calibração com cenários reais | C — Robustez | ⬜ desbloqueado | (sem brief) |
+| E1+ | Implementação do cockpit | E — Cockpit | 🔒 espera E0 fechar | (a definir) |
 | ~~C1~~ | Retry transiente no claude_runner | C — Robustez | ✅ fechado em `b530cca` | [`C1-retry-transiente.md`](C1-retry-transiente.md) |
 | ~~C2~~ | Cenários E2E de erro | C — Robustez | ✅ fechado em `ff08269` | [`C2-cenarios-e2e-erro.md`](C2-cenarios-e2e-erro.md) |
 
