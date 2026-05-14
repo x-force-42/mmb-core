@@ -8,7 +8,19 @@ import discord
 from discord import app_commands
 from discord.errors import NotFound
 
+from aquario import (
+    AquarioClient,
+    Event,
+    FREAKING_OUT_S,
+    Meeseeks,
+    Snapshot,
+    State,
+    event_for_phase,
+    health_from_elapsed,
+)
 from config import (
+    AQUARIUM_ENABLED,
+    AQUARIUM_WS_URL,
     DISCORD_BOT_TOKEN,
     DISCORD_GUILD_ID,
     MMB_DB_PATH,
@@ -35,6 +47,15 @@ T = TypeVar("T")
 
 _logger = RunLogger(MMB_DB_PATH)
 _project_id: str = ""
+
+# Aquário (side-car visual). Pode ser None se desligado ou se a
+# inicialização falhou — `_emit_aquario` lida com isso.
+_aquario: AquarioClient | None = None
+
+# Registry dos Meeseeks ainda vivos pro aquário, indexado por id.
+# Mantém o último estado conhecido pra que o snapshot no reconnect
+# consiga reanunciar todo mundo que está em curso.
+_meeseeks_vivos: dict[str, dict] = {}
 
 intents = discord.Intents.default()
 
@@ -63,7 +84,7 @@ client = MeeseeksBox()
 
 @client.event
 async def on_ready():
-    global _project_id
+    global _project_id, _aquario
     _project_id = _logger.ensure_project(
         slug=TARGET_PROJECT_PATH.name,
         name=TARGET_PROJECT_PATH.name,
@@ -73,11 +94,100 @@ async def on_ready():
     print(f"Projeto-alvo: {TARGET_PROJECT_PATH}")
     print(f"Logger: {MMB_DB_PATH} (project_id={_project_id[:8]}…)")
 
+    if AQUARIUM_ENABLED:
+        try:
+            _aquario = AquarioClient(
+                AQUARIUM_WS_URL, snapshot_provider=_aquario_snapshot
+            )
+            await _aquario.start()
+            print(f"Aquário ligado: {AQUARIUM_WS_URL}")
+        except Exception as e:
+            print(f"[warn] aquário não inicializou: {e!r}")
+            _aquario = None
+    else:
+        print("Aquário desligado (AQUARIUM_ENABLED=false)")
+
+
+# ─── aquário (side-car visual) ───────────────────────────────────────────
+
+def _emit_aquario(msg) -> None:
+    """Best-effort emit pro aquário. Cliente já é silencioso em falha
+    — esta indireção só protege o caso de aquário desligado."""
+    if _aquario is not None:
+        _aquario.emit(msg)
+
+
+def _aquario_snapshot() -> Snapshot:
+    """Reanuncia todos os Meeseeks ainda vivos. Chamado pelo cliente
+    em cada (re)conexão — o aquário trata snapshot como reset
+    completo."""
+    return Snapshot(meeseeks=[
+        Meeseeks(
+            id=info["id"],
+            health=info["health"],
+            isFreakingOut=info["isFreakingOut"],
+            name=info["name"],
+            task=info["task"],
+        )
+        for info in _meeseeks_vivos.values()
+    ])
+
+
+def _aquario_born(aquario_id: str, name: str, task: str) -> None:
+    """Anuncia o nascimento de um Meeseeks. Precisa vir ANTES de qualquer
+    state/event subsequente pro mesmo id — o aquário dropa silenciosamente
+    mensagens pra ids desconhecidos."""
+    _meeseeks_vivos[aquario_id] = {
+        "id": aquario_id,
+        "health": 1.0,
+        "isFreakingOut": False,
+        "name": name,
+        "task": task,
+    }
+    _emit_aquario(
+        Event(kind="born", id=aquario_id, name=name, task=task)
+    )
+
+
+def _aquario_tick(aquario_id: str, elapsed: float) -> None:
+    """Tick periódico do heartbeat: emite state com health derivada e,
+    no cruzamento do limite, emite freaking_out UMA vez."""
+    info = _meeseeks_vivos.get(aquario_id)
+    if info is None:
+        return
+    health = health_from_elapsed(elapsed)
+    info["health"] = health
+    _emit_aquario(State(id=aquario_id, health=health))
+    if elapsed >= FREAKING_OUT_S and not info["isFreakingOut"]:
+        info["isFreakingOut"] = True
+        _emit_aquario(Event(kind="freaking_out", id=aquario_id))
+
+
+def _aquario_die(aquario_id: str, phase: str) -> None:
+    """Emite o evento de morte correspondente à phase terminal e
+    remove o Meeseeks do pool de vivos. Phases pré-Meeseeks (garagem_*)
+    são silenciosas porque o `born` nem chegou a sair."""
+    kind = event_for_phase(phase)
+    if kind is None:
+        return
+    _emit_aquario(Event(kind=kind, id=aquario_id))
+    _meeseeks_vivos.pop(aquario_id, None)
+
 
 # ─── helpers genéricos ───────────────────────────────────────────────────
 
-async def _heartbeat(message, render_fn, interval: int = 5):
-    """Edita `message` periodicamente com novo embed até ser cancelada."""
+async def _heartbeat(
+    message,
+    render_fn,
+    interval: int = 5,
+    on_tick: Callable[[float], None] | None = None,
+):
+    """Edita `message` periodicamente com novo embed até ser cancelada.
+
+    `on_tick`, se fornecido, é chamado a cada tick com o tempo decorrido
+    — usado pra emitir state pro aquário no mesmo ritmo do heartbeat
+    do Discord. Falha em `on_tick` é silenciada pra não atrapalhar a
+    edição da mensagem."""
     start = time.monotonic()
     try:
         while True:
@@ -87,6 +197,11 @@ async def _heartbeat(message, render_fn, interval: int = 5):
                 await message.edit(embed=render_fn(elapsed))
             except (discord.HTTPException, NotFound):
                 pass
+            if on_tick is not None:
+                try:
+                    on_tick(elapsed)
+                except Exception as e:
+                    print(f"[warn] heartbeat on_tick falhou: {e!r}")
     except asyncio.CancelledError:
         pass
 
@@ -120,13 +235,17 @@ async def _run_with_heartbeat(
     status_msg,
     render_fn: Callable[[float], discord.Embed],
     coro: Awaitable[T],
+    on_tick: Callable[[float], None] | None = None,
 ) -> tuple[T, float]:
     """Roda `coro` enquanto um heartbeat reedita `status_msg` a cada
     5s usando `render_fn(elapsed)`. Devolve (resultado, tempo decorrido).
     Cancela o heartbeat mesmo se a coro levantar.
+
+    `on_tick` é repassado pro heartbeat — usado pelo bloco do Meeseeks
+    pra empurrar state pro aquário no mesmo ritmo dos edits do Discord.
     """
     start = time.monotonic()
-    hb = asyncio.create_task(_heartbeat(status_msg, render_fn))
+    hb = asyncio.create_task(_heartbeat(status_msg, render_fn, on_tick=on_tick))
     try:
         result = await coro
     finally:
@@ -288,10 +407,16 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     # ── Meeseeks ──
     await _try_edit(status_msg, embed_meeseeks_spawn(g_tempo))
 
+    # POOF! Anuncia o nascimento ANTES de qualquer state/event —
+    # o aquário dropa silenciosamente mensagens pra id sem born.
+    aquario_id = run_id
+    _aquario_born(aquario_id, name=slug, task=task)
+
     m, m_elapsed = await _run_with_heartbeat(
         status_msg,
         lambda elapsed: embed_meeseeks_working(slug, elapsed),
         invocar_meeseeks(parsed, TARGET_PROJECT_PATH),
+        on_tick=lambda elapsed: _aquario_tick(aquario_id, elapsed),
     )
     m_tempo = fmt_time(m_elapsed)
     total_elapsed = g_elapsed + m_elapsed
@@ -300,6 +425,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
         _logger.record_meeseeks(run_id, _meeseeks_entry(m, m_elapsed, "failure"))
         _logger.finish_run(run_id, terminal_phase="meeseeks_failure",
                            total_elapsed_s=total_elapsed)
+        _aquario_die(aquario_id, "meeseeks_failure")
         return await _send_meeseeks_failure(
             interaction, status_msg, m, m_tempo
         )
@@ -313,6 +439,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
         _logger.record_dev_server(run_id, DevServerEntry(outcome="failure"))
         _logger.finish_run(run_id, terminal_phase="dev_server_failure",
                            total_elapsed_s=total_elapsed)
+        _aquario_die(aquario_id, "dev_server_failure")
         return await _send_dev_server_failure(
             interaction, status_msg, m, e, m_tempo
         )
@@ -320,6 +447,7 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     _logger.record_dev_server(run_id, DevServerEntry(outcome="success", port=dev_port))
     _logger.finish_run(run_id, terminal_phase="success",
                        total_elapsed_s=total_elapsed)
+    _aquario_die(aquario_id, "success")
 
     await _send_success(interaction, status_msg, m, m_tempo, dev_port)
 
