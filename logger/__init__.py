@@ -214,8 +214,174 @@ class RunLogger:
         ).fetchone()
         return dict(row) if row else None
 
+    # ── aggregated readers (cockpit API) ─────────────────────────────────
+
+    def list_runs(
+        self,
+        *,
+        project_slug: str | None = None,
+        phase: str | None = None,
+        from_iso: str | None = None,
+        to_iso: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        order: str = "started_at:desc",
+    ) -> tuple[list[dict], int]:
+        """Lista runs paginada com filtros. Retorna (items, total).
+
+        Items são dicts da linha do banco com `project_slug` joinado.
+        `limit` é capado em 200. `order` é validado contra whitelist —
+        valores inválidos caem no default.
+        """
+        if limit > 200:
+            limit = 200
+        if limit < 1:
+            limit = 1
+        if offset < 0:
+            offset = 0
+
+        order_sql = _ORDER_WHITELIST.get(order, _ORDER_WHITELIST["started_at:desc"])
+
+        where_parts: list[str] = []
+        params: list = []
+        if project_slug is not None:
+            where_parts.append("p.slug = ?")
+            params.append(project_slug)
+        if phase is not None:
+            where_parts.append("r.terminal_phase = ?")
+            params.append(phase)
+        if from_iso is not None:
+            where_parts.append("r.started_at >= ?")
+            params.append(from_iso)
+        if to_iso is not None:
+            where_parts.append("r.started_at <= ?")
+            params.append(to_iso)
+        where_sql = ("WHERE " + " AND ".join(where_parts)) if where_parts else ""
+
+        total = self._conn.execute(
+            f"SELECT COUNT(*) AS n FROM runs r JOIN projects p ON p.id = r.project_id {where_sql}",
+            params,
+        ).fetchone()["n"]
+
+        rows = self._conn.execute(
+            f"""
+            SELECT r.*, p.slug AS project_slug
+            FROM runs r JOIN projects p ON p.id = r.project_id
+            {where_sql}
+            ORDER BY {order_sql}
+            LIMIT ? OFFSET ?
+            """,
+            [*params, limit, offset],
+        ).fetchall()
+        return [dict(row) for row in rows], total
+
+    def list_projects(self) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM projects ORDER BY slug"
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_run_review(
+        self,
+        run_id: str,
+        *,
+        merged_to_main: int | None,
+        assertiveness_score: int | None,
+        review_note: str | None,
+    ) -> bool:
+        """Persiste os 3 campos de review manual. Retorna True se a row existia."""
+        cur = self._conn.execute(
+            """
+            UPDATE runs SET
+                merged_to_main      = ?,
+                assertiveness_score = ?,
+                review_note         = ?
+            WHERE id = ?
+            """,
+            (merged_to_main, assertiveness_score, review_note, run_id),
+        )
+        self._conn.commit()
+        return cur.rowcount > 0
+
+    def overview_metrics(self, *, days: int = 30) -> dict:
+        """Agregados para o dashboard do cockpit. Janela retroativa em dias."""
+        if days < 1:
+            days = 1
+        since = f"-{days} days"
+
+        base = self._conn.execute(
+            """
+            SELECT
+                COUNT(*) AS runs_total,
+                COALESCE(SUM(COALESCE(garagem_cost_usd, 0) + COALESCE(meeseeks_cost_usd, 0)), 0) AS custo_total_usd,
+                AVG(total_elapsed_s) AS tempo_medio_s,
+                SUM(CASE WHEN terminal_phase LIKE 'garagem_%' THEN 1 ELSE 0 END) AS pushback_n
+            FROM runs
+            WHERE started_at >= datetime('now', ?)
+            """,
+            (since,),
+        ).fetchone()
+
+        runs_total = base["runs_total"] or 0
+        pushback_n = base["pushback_n"] or 0
+        taxa_pushback = (pushback_n / runs_total) if runs_total > 0 else 0.0
+
+        custo_rows = self._conn.execute(
+            """
+            SELECT date(started_at) AS dia,
+                   COALESCE(SUM(COALESCE(garagem_cost_usd, 0) + COALESCE(meeseeks_cost_usd, 0)), 0) AS usd
+            FROM runs
+            WHERE started_at >= datetime('now', ?)
+            GROUP BY dia
+            ORDER BY dia DESC
+            """,
+            (since,),
+        ).fetchall()
+
+        runs_rows = self._conn.execute(
+            """
+            SELECT date(started_at) AS dia, COUNT(*) AS n
+            FROM runs
+            WHERE started_at >= datetime('now', ?)
+            GROUP BY dia
+            ORDER BY dia DESC
+            """,
+            (since,),
+        ).fetchall()
+
+        phase_rows = self._conn.execute(
+            """
+            SELECT terminal_phase, COUNT(*) AS n
+            FROM runs
+            WHERE started_at >= datetime('now', ?)
+              AND terminal_phase IS NOT NULL
+            GROUP BY terminal_phase
+            """,
+            (since,),
+        ).fetchall()
+
+        return {
+            "window_days": days,
+            "runs_total": runs_total,
+            "custo_total_usd": round(base["custo_total_usd"] or 0.0, 4),
+            "tempo_medio_s": base["tempo_medio_s"],
+            "taxa_pushback": round(taxa_pushback, 4),
+            "custo_por_dia": [
+                {"dia": r["dia"], "usd": round(r["usd"] or 0.0, 4)} for r in custo_rows
+            ],
+            "runs_por_dia": [{"dia": r["dia"], "n": r["n"]} for r in runs_rows],
+            "phase_breakdown": {r["terminal_phase"]: r["n"] for r in phase_rows},
+        }
+
 
 # ─── helpers ─────────────────────────────────────────────────────────────
+
+_ORDER_WHITELIST = {
+    "started_at:desc": "r.started_at DESC",
+    "started_at:asc": "r.started_at ASC",
+    "total_elapsed_s:desc": "r.total_elapsed_s DESC",
+    "total_elapsed_s:asc": "r.total_elapsed_s ASC",
+}
 
 def _new_id() -> str:
     return str(uuid.uuid4())

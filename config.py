@@ -15,6 +15,14 @@ MEESEEKS_TIMEOUT_S = int(os.getenv("MEESEEKS_TIMEOUT_S", "1800"))
 MEESEEKS_DEV_PORT = int(os.getenv("MEESEEKS_DEV_PORT", "5173"))
 MMB_DB_PATH = Path(os.getenv("MMB_DB_PATH", "mmb.db")).expanduser()
 
+# API do cockpit (processo separado, roda independente do bot).
+MMB_API_PORT = int(os.getenv("MMB_API_PORT", "8765"))
+MMB_API_CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv("MMB_API_CORS_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
+]
+
 if not DISCORD_BOT_TOKEN:
     raise RuntimeError("DISCORD_BOT_TOKEN não setado no .env")
 if not TARGET_PROJECT_PATH.exists():

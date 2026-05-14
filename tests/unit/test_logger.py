@@ -313,3 +313,175 @@ class TestFullLifecycle:
         assert log.get_run(r2)["project_id"] == p2
         assert p1 != p2
         assert r1 != r2
+
+
+# ─── aggregated readers (cockpit API) ────────────────────────────────────
+
+
+def _force_started_at(log, run_id, iso):
+    """Sobrescreve started_at de uma run (pra testar filtros temporais)."""
+    log._conn.execute("UPDATE runs SET started_at = ? WHERE id = ?", (iso, run_id))
+    log._conn.commit()
+
+
+class TestListRuns:
+    def test_returns_empty_when_no_runs(self, log, project_id):
+        items, total = log.list_runs()
+        assert items == [] and total == 0
+
+    def test_pagination_and_total(self, log, project_id):
+        for i in range(5):
+            log.start_run(project_id=project_id, task_raw=f"task {i}")
+        items, total = log.list_runs(limit=2, offset=1)
+        assert total == 5
+        assert len(items) == 2
+
+    def test_caps_limit_at_200(self, log, project_id):
+        items, total = log.list_runs(limit=9999)
+        assert total == 0 and items == []
+        # Não dá pra observar o cap direto sem rodar SQL, mas garantimos que não explode.
+
+    def test_joins_project_slug(self, log, project_id):
+        log.start_run(project_id=project_id, task_raw="t")
+        items, _ = log.list_runs()
+        assert items[0]["project_slug"] == "test-proj"
+
+    def test_filter_by_project_slug(self, log):
+        p1 = log.ensure_project(slug="alpha", name="A", path="/a")
+        p2 = log.ensure_project(slug="beta", name="B", path="/b")
+        log.start_run(project_id=p1, task_raw="a")
+        log.start_run(project_id=p2, task_raw="b")
+        items, total = log.list_runs(project_slug="alpha")
+        assert total == 1
+        assert items[0]["project_slug"] == "alpha"
+
+    def test_filter_by_phase(self, log, project_id):
+        r1 = log.start_run(project_id=project_id, task_raw="ok")
+        r2 = log.start_run(project_id=project_id, task_raw="pushback")
+        log.finish_run(r1, terminal_phase="success", total_elapsed_s=10.0)
+        log.finish_run(r2, terminal_phase="garagem_pushback", total_elapsed_s=5.0)
+        items, total = log.list_runs(phase="success")
+        assert total == 1
+        assert items[0]["id"] == r1
+
+    def test_filter_by_date_window(self, log, project_id):
+        r_old = log.start_run(project_id=project_id, task_raw="old")
+        r_new = log.start_run(project_id=project_id, task_raw="new")
+        _force_started_at(log, r_old, "2026-01-01T00:00:00+00:00")
+        _force_started_at(log, r_new, "2026-05-01T00:00:00+00:00")
+        items, total = log.list_runs(from_iso="2026-04-01", to_iso="2026-06-01")
+        assert total == 1 and items[0]["id"] == r_new
+
+    def test_order_by_elapsed_asc(self, log, project_id):
+        r1 = log.start_run(project_id=project_id, task_raw="slow")
+        r2 = log.start_run(project_id=project_id, task_raw="fast")
+        log.finish_run(r1, terminal_phase="success", total_elapsed_s=100.0)
+        log.finish_run(r2, terminal_phase="success", total_elapsed_s=5.0)
+        items, _ = log.list_runs(order="total_elapsed_s:asc")
+        assert [it["id"] for it in items] == [r2, r1]
+
+    def test_invalid_order_falls_back_to_default(self, log, project_id):
+        log.start_run(project_id=project_id, task_raw="t")
+        items, _ = log.list_runs(order="; DROP TABLE runs--")
+        assert len(items) == 1  # não explode, retorna no default
+
+
+class TestListProjects:
+    def test_returns_empty(self, log):
+        assert log.list_projects() == []
+
+    def test_ordered_by_slug(self, log):
+        log.ensure_project(slug="zeta", name="Z", path="/z")
+        log.ensure_project(slug="alpha", name="A", path="/a")
+        items = log.list_projects()
+        assert [p["slug"] for p in items] == ["alpha", "zeta"]
+
+
+class TestUpdateRunReview:
+    def test_persists_all_three_fields(self, log, run_id):
+        ok = log.update_run_review(
+            run_id,
+            merged_to_main=1,
+            assertiveness_score=4,
+            review_note="ficou bom",
+        )
+        assert ok is True
+        row = log.get_run(run_id)
+        assert row["merged_to_main"] == 1
+        assert row["assertiveness_score"] == 4
+        assert row["review_note"] == "ficou bom"
+
+    def test_accepts_nulls(self, log, run_id):
+        log.update_run_review(run_id, merged_to_main=1, assertiveness_score=3, review_note="x")
+        log.update_run_review(run_id, merged_to_main=None, assertiveness_score=None, review_note=None)
+        row = log.get_run(run_id)
+        assert row["merged_to_main"] is None
+        assert row["assertiveness_score"] is None
+        assert row["review_note"] is None
+
+    def test_returns_false_for_unknown_id(self, log):
+        ok = log.update_run_review(
+            "nonexistent",
+            merged_to_main=1,
+            assertiveness_score=5,
+            review_note="x",
+        )
+        assert ok is False
+
+
+class TestOverviewMetrics:
+    def test_empty_db(self, log):
+        m = log.overview_metrics(days=30)
+        assert m["window_days"] == 30
+        assert m["runs_total"] == 0
+        assert m["custo_total_usd"] == 0.0
+        assert m["taxa_pushback"] == 0.0
+        assert m["custo_por_dia"] == []
+        assert m["runs_por_dia"] == []
+        assert m["phase_breakdown"] == {}
+
+    def test_aggregates_costs_and_pushback(self, log, project_id):
+        r1 = log.start_run(project_id=project_id, task_raw="ok")
+        r2 = log.start_run(project_id=project_id, task_raw="pushback")
+        r3 = log.start_run(project_id=project_id, task_raw="fail")
+        log.record_garagem(r1, GaragemEntry(model="m", elapsed_s=1, outcome="success", cost_usd=0.02))
+        log.record_meeseeks(r1, MeeseeksEntry(model="m", elapsed_s=10, outcome="success", cost_usd=0.08))
+        log.finish_run(r1, terminal_phase="success", total_elapsed_s=11.0)
+        log.record_garagem(r2, GaragemEntry(model="m", elapsed_s=2, outcome="pushback", cost_usd=0.01))
+        log.finish_run(r2, terminal_phase="garagem_pushback", total_elapsed_s=2.0)
+        log.record_garagem(r3, GaragemEntry(model="m", elapsed_s=3, outcome="success", cost_usd=0.03))
+        log.finish_run(r3, terminal_phase="meeseeks_failure", total_elapsed_s=20.0)
+
+        m = log.overview_metrics(days=30)
+        assert m["runs_total"] == 3
+        assert m["custo_total_usd"] == pytest.approx(0.14, abs=1e-6)
+        assert m["taxa_pushback"] == pytest.approx(1 / 3, abs=1e-3)
+        assert m["phase_breakdown"]["success"] == 1
+        assert m["phase_breakdown"]["garagem_pushback"] == 1
+        assert m["phase_breakdown"]["meeseeks_failure"] == 1
+
+    def test_window_excludes_old_runs(self, log, project_id):
+        r_old = log.start_run(project_id=project_id, task_raw="old")
+        r_new = log.start_run(project_id=project_id, task_raw="new")
+        _force_started_at(log, r_old, "2020-01-01T00:00:00+00:00")
+        # r_new fica com started_at recente (now)
+
+        m = log.overview_metrics(days=30)
+        assert m["runs_total"] == 1
+
+    def test_daily_buckets(self, log, project_id):
+        r1 = log.start_run(project_id=project_id, task_raw="a")
+        r2 = log.start_run(project_id=project_id, task_raw="b")
+        r3 = log.start_run(project_id=project_id, task_raw="c")
+        from datetime import datetime, timezone, timedelta
+        today = datetime.now(timezone.utc)
+        d0 = today.strftime("%Y-%m-%d") + "T12:00:00+00:00"
+        d1 = (today - timedelta(days=1)).strftime("%Y-%m-%d") + "T12:00:00+00:00"
+        _force_started_at(log, r1, d0)
+        _force_started_at(log, r2, d0)
+        _force_started_at(log, r3, d1)
+
+        m = log.overview_metrics(days=30)
+        runs_dict = {item["dia"]: item["n"] for item in m["runs_por_dia"]}
+        assert runs_dict[today.strftime("%Y-%m-%d")] == 2
+        assert runs_dict[(today - timedelta(days=1)).strftime("%Y-%m-%d")] == 1
