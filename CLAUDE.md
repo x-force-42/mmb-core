@@ -88,6 +88,22 @@ de JSON, dois modos de falha — `garagem.py` distingue no campo `error`.
   derrubar o fluxo principal). Mantenha novas edições do Discord
   igualmente defensivas.
 
+## Camada agêntica — onde ler antes de operar
+
+Este projeto opera com workflow estruturado de orquestrador + agentes
+delegados em worktrees paralelas. Dependendo do seu papel nesta
+sessão, leia o doc certo:
+
+- **Você é uma sessão Claude na raiz do MMB** (orquestrador), e o
+  Rick está conversando contigo sobre planejar, discutir, delegar,
+  revisar entregas, atualizar docs? → leia
+  [`docs/ORQUESTRADOR.md`](docs/ORQUESTRADOR.md). Ele descreve
+  o ciclo das 7 fases, princípios implícitos, anti-padrões.
+- **Você é uma sessão Claude em uma worktree** (agente delegado),
+  iniciada via `scripts/task-start.sh <id>`? → leia
+  [`docs/tasks/PROTOCOLO.md`](docs/tasks/PROTOCOLO.md) primeiro,
+  depois o brief da sua task em `docs/tasks/<id>-<slug>.md`.
+
 ## Operação como agente de task (bootstrap)
 
 Se você é uma sessão Claude recém-iniciada neste repo e o Rick ainda

@@ -5,6 +5,41 @@ Mais recente no topo.
 
 ---
 
+## 2026-05-14 — meta-marco · workflow codificado
+
+Depois de 5 ciclos consecutivos de delegação bem-sucedida (C1, C2,
+E0, E1, scaffold inicial), o orquestrador formalizou o padrão
+observado em `docs/ORQUESTRADOR.md`. É espelho do
+`docs/tasks/PROTOCOLO.md` — aquele diz como agente delegado opera,
+este diz como o orquestrador opera.
+
+CLAUDE.md ganhou seção de roteamento no topo: dependendo se a
+sessão é "orquestrador na raiz" ou "agente em worktree", o Claude
+vai pra um doc ou outro. Reduz ainda mais o atrito de bootstrap —
+qualquer sessão futura cai automaticamente no roteiro certo.
+
+### O que ficou explícito
+
+- **7 fases do ciclo principal** (brainstorm → discovery → brief →
+  mapa → worktree → bootstrap → entrega/merge).
+- **7 princípios implícitos** que estavam funcionando sem nome
+  (conversa pra decisão, brief pra execução, docs como consenso,
+  scripts enforcem invariantes, orquestrador não toca produção,
+  paralelismo deliberado, validação iterativa).
+- **5 anti-padrões** com sintoma/causa/cura.
+- **4 situações pra NÃO seguir o protocolo** (exploração, debug,
+  pergunta de arquitetura, pivô de visão).
+- **Heurística pra evoluir a camada agêntica** (regra das 3
+  ocorrências).
+
+### Por que agora
+
+Padrão emergiu organicamente; codificar antes seria especulação,
+codificar depois é só descrever o que funciona. Cinco entregas
+em sequência foi a evidência suficiente.
+
+---
+
 ## 2026-05-14 — API do cockpit operacional (E1)
 
 ### E1 entregue (commit `f2aa145`)
