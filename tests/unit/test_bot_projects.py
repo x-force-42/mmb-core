@@ -200,3 +200,123 @@ class TestProjectRemove:
         await bot.project_remove.callback(mock_interaction, slug="x")
         _, kwargs = mock_interaction.response.send_message.call_args
         assert kwargs.get("ephemeral") is True
+
+
+# ─── /meeseeks projeto: ──────────────────────────────────────────────────
+
+class TestMeeseeksProjetoLookup:
+    """O handler do /meeseeks valida o slug antes de fazer defer.
+    Cobre só o ramo de erro — happy path passa pelo pipeline completo
+    (Garagem + Meeseeks subprocess) e tem testes de pipeline próprios."""
+
+    @pytest.mark.asyncio
+    async def test_slug_inexistente_responde_ephemeral_sem_iniciar_run(
+        self, fresh_logger, mock_interaction
+    ):
+        import bot
+        await bot.meeseeks.callback(
+            mock_interaction, projeto="fantasma", task="qualquer"
+        )
+        _, kwargs = mock_interaction.response.send_message.call_args
+        assert kwargs.get("ephemeral") is True
+        assert "não encontrado" in kwargs["embed"].title
+        # Run NÃO foi criado — falhou no lookup, antes de start_run
+        items, total = fresh_logger.list_runs()
+        assert total == 0
+
+    @pytest.mark.asyncio
+    async def test_slug_inativo_responde_ephemeral(
+        self, fresh_logger, mock_interaction, repo_path
+    ):
+        import bot
+        fresh_logger.register_project(slug="zumbi", path=str(repo_path))
+        fresh_logger.deactivate_project("zumbi")
+        await bot.meeseeks.callback(
+            mock_interaction, projeto="zumbi", task="oi"
+        )
+        _, kwargs = mock_interaction.response.send_message.call_args
+        assert kwargs.get("ephemeral") is True
+
+
+class TestProjetoAutocomplete:
+    @pytest.mark.asyncio
+    async def test_lista_vazia(self, fresh_logger, mock_interaction):
+        import bot
+        result = await bot._projeto_autocomplete(mock_interaction, "")
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_filtra_pelo_prefixo(
+        self, fresh_logger, mock_interaction, repo_path
+    ):
+        import bot
+        fresh_logger.register_project(slug="alpha", path=str(repo_path))
+        fresh_logger.register_project(slug="beta", path=str(repo_path))
+        fresh_logger.register_project(slug="alphabet", path=str(repo_path))
+        result = await bot._projeto_autocomplete(mock_interaction, "alp")
+        slugs = sorted(c.value for c in result)
+        assert slugs == ["alpha", "alphabet"]
+
+    @pytest.mark.asyncio
+    async def test_filtro_case_insensitive(
+        self, fresh_logger, mock_interaction, repo_path
+    ):
+        import bot
+        fresh_logger.register_project(slug="meu-app", path=str(repo_path))
+        result = await bot._projeto_autocomplete(mock_interaction, "MEU")
+        assert len(result) == 1
+        assert result[0].value == "meu-app"
+
+    @pytest.mark.asyncio
+    async def test_exclui_inativos(
+        self, fresh_logger, mock_interaction, repo_path
+    ):
+        import bot
+        fresh_logger.register_project(slug="alpha", path=str(repo_path))
+        fresh_logger.register_project(slug="beta", path=str(repo_path))
+        fresh_logger.deactivate_project("beta")
+        result = await bot._projeto_autocomplete(mock_interaction, "")
+        slugs = [c.value for c in result]
+        assert "alpha" in slugs
+        assert "beta" not in slugs
+
+    @pytest.mark.asyncio
+    async def test_limite_de_25(
+        self, fresh_logger, mock_interaction, repo_path
+    ):
+        import bot
+        for i in range(30):
+            fresh_logger.register_project(slug=f"s{i:02d}", path=str(repo_path))
+        result = await bot._projeto_autocomplete(mock_interaction, "")
+        assert len(result) == 25
+
+
+class TestSeedDefaultProject:
+    """Migração: se TARGET_PROJECT_PATH setado e tabela vazia, cadastra."""
+
+    def test_seed_quando_tabela_vazia(
+        self, fresh_logger, monkeypatch, repo_path
+    ):
+        import bot
+        monkeypatch.setattr(bot, "TARGET_PROJECT_PATH", repo_path)
+        bot._seed_default_project_if_needed()
+        proj = fresh_logger.get_project_by_slug(repo_path.name)
+        assert proj is not None
+
+    def test_nao_faz_seed_se_ja_tem_projetos(
+        self, fresh_logger, monkeypatch, repo_path
+    ):
+        import bot
+        fresh_logger.register_project(slug="ja-existe", path=str(repo_path))
+        monkeypatch.setattr(bot, "TARGET_PROJECT_PATH", repo_path)
+        bot._seed_default_project_if_needed()
+        # Não cadastrou o do TARGET_PROJECT_PATH
+        assert fresh_logger.get_project_by_slug(repo_path.name) is None
+
+    def test_no_op_se_target_path_none(
+        self, fresh_logger, monkeypatch
+    ):
+        import bot
+        monkeypatch.setattr(bot, "TARGET_PROJECT_PATH", None)
+        bot._seed_default_project_if_needed()
+        assert fresh_logger.list_projects() == []
