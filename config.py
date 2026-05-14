@@ -13,6 +13,7 @@ CLAUDE_CLI = os.getenv("CLAUDE_CLI", "claude")
 GARAGEM_TIMEOUT_S = int(os.getenv("GARAGEM_TIMEOUT_S", "300"))
 MEESEEKS_TIMEOUT_S = int(os.getenv("MEESEEKS_TIMEOUT_S", "1800"))
 MEESEEKS_DEV_PORT = int(os.getenv("MEESEEKS_DEV_PORT", "5173"))
+MMB_DB_PATH = Path(os.getenv("MMB_DB_PATH", "mmb.db")).expanduser()
 
 if not DISCORD_BOT_TOKEN:
     raise RuntimeError("DISCORD_BOT_TOKEN não setado no .env")

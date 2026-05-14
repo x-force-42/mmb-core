@@ -83,9 +83,41 @@ def _patch_spawn(monkeypatch, proc=None, raise_exc=None):
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake)
 
 
-def _envelope(result: str) -> bytes:
-    """Envelope JSON que o claude --output-format json devolve."""
-    return json.dumps({"result": result}).encode("utf-8")
+def _envelope(
+    result: str,
+    *,
+    total_cost_usd: float | None = 0.0123,
+    input_tokens: int | None = 1500,
+    output_tokens: int | None = 400,
+) -> bytes:
+    """Envelope JSON que o claude --output-format json devolve.
+
+    Estrutura derivada de uma captura real do CLI: chaves de topo
+    `result` / `total_cost_usd` e usage com `input_tokens` /
+    `output_tokens`. Mudou o contrato? Esse fixture precisa mudar
+    junto — é o ponto de drift documentado.
+    """
+    envelope: dict = {"result": result}
+    if total_cost_usd is not None:
+        envelope["total_cost_usd"] = total_cost_usd
+    if input_tokens is not None or output_tokens is not None:
+        envelope["usage"] = {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+        }
+    return json.dumps(envelope).encode("utf-8")
+
+
+# Envelope real capturado de `claude -p "responda 'ok'" --output-format json`.
+# Existe pra travar o contrato: se o CLI mudar a forma do payload, o teste
+# que usa esse fixture quebra e força a gente a revisar claude_runner.py.
+_REAL_ENVELOPE_FIXTURE = (
+    '{"type":"result","subtype":"success","is_error":false,'
+    '"duration_ms":1820,"num_turns":1,"result":"ok",'
+    '"total_cost_usd":0.033447899999999996,'
+    '"usage":{"input_tokens":2,"cache_creation_input_tokens":7784,'
+    '"cache_read_input_tokens":12573,"output_tokens":4}}'
+).encode("utf-8")
 
 
 # ─── run_claude_p ────────────────────────────────────────────────────────
@@ -204,6 +236,58 @@ class TestRunClaudePSuccess:
         )
         assert r.error is None
         assert r.output == ""
+
+    async def test_extracts_usage_and_cost_from_envelope(self, monkeypatch):
+        """Travaa que tokens/custo são lidos das chaves certas do envelope.
+        Bug histórico: lia `cost_usd` em vez de `total_cost_usd`, virava
+        sempre None silenciosamente."""
+        proc = _FakeProc(
+            stdout=_envelope("ok", total_cost_usd=0.042,
+                             input_tokens=1234, output_tokens=567),
+            returncode=0,
+        )
+        _patch_spawn(monkeypatch, proc=proc)
+
+        r = await run_claude_p(
+            user_prompt="x", system_prompt="y",
+            cwd=Path("/tmp"), timeout=5,
+        )
+        assert r.tokens_input == 1234
+        assert r.tokens_output == 567
+        assert r.cost_usd == pytest.approx(0.042)
+
+    async def test_usage_fields_none_when_envelope_omits_them(self, monkeypatch):
+        proc = _FakeProc(
+            stdout=_envelope("ok", total_cost_usd=None,
+                             input_tokens=None, output_tokens=None),
+            returncode=0,
+        )
+        _patch_spawn(monkeypatch, proc=proc)
+
+        r = await run_claude_p(
+            user_prompt="x", system_prompt="y",
+            cwd=Path("/tmp"), timeout=5,
+        )
+        assert r.tokens_input is None
+        assert r.tokens_output is None
+        assert r.cost_usd is None
+
+    async def test_parses_real_cli_envelope_fixture(self, monkeypatch):
+        """Teste de contrato: parsea um envelope capturado direto do CLI
+        sem mexer. Se o CLI mudar o nome das chaves de cost/usage, esse
+        teste quebra antes de o bug chegar em produção."""
+        proc = _FakeProc(stdout=_REAL_ENVELOPE_FIXTURE, returncode=0)
+        _patch_spawn(monkeypatch, proc=proc)
+
+        r = await run_claude_p(
+            user_prompt="x", system_prompt="y",
+            cwd=Path("/tmp"), timeout=5,
+        )
+        assert r.error is None
+        assert r.output == "ok"
+        assert r.tokens_input == 2
+        assert r.tokens_output == 4
+        assert r.cost_usd == pytest.approx(0.0334479)
 
 
 class TestRunClaudePCommandConstruction:

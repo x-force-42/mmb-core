@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS runs (
     garagem_outcome         TEXT,
     garagem_briefing_json   TEXT,
     garagem_meeseeks_prompt TEXT,
-    garagem_prompt_tokens   INTEGER,
     garagem_criticality     TEXT,
     garagem_complexity      TEXT,
     garagem_commit_type     TEXT,

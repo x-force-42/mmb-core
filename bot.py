@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 import time
 from typing import Awaitable, Callable, TypeVar
 
@@ -7,7 +8,13 @@ import discord
 from discord import app_commands
 from discord.errors import NotFound
 
-from config import DISCORD_BOT_TOKEN, DISCORD_GUILD_ID, TARGET_PROJECT_PATH
+from config import (
+    DISCORD_BOT_TOKEN,
+    DISCORD_GUILD_ID,
+    MMB_DB_PATH,
+    TARGET_PROJECT_PATH,
+)
+from logger import DevServerEntry, GaragemEntry, MeeseeksEntry, RunLogger
 from embeds import (
     embed_dev_server_falhou,
     embed_garagem_engasgou,
@@ -26,6 +33,8 @@ from meeseeks import MeeseeksResult, invocar_meeseeks, start_dev_server
 
 T = TypeVar("T")
 
+_logger = RunLogger(MMB_DB_PATH)
+_project_id: str = ""
 
 intents = discord.Intents.default()
 
@@ -54,8 +63,15 @@ client = MeeseeksBox()
 
 @client.event
 async def on_ready():
+    global _project_id
+    _project_id = _logger.ensure_project(
+        slug=TARGET_PROJECT_PATH.name,
+        name=TARGET_PROJECT_PATH.name,
+        path=str(TARGET_PROJECT_PATH),
+    )
     print(f"Bot conectado como {client.user}")
     print(f"Projeto-alvo: {TARGET_PROJECT_PATH}")
+    print(f"Logger: {MMB_DB_PATH} (project_id={_project_id[:8]}…)")
 
 
 # ─── helpers genéricos ───────────────────────────────────────────────────
@@ -171,6 +187,47 @@ async def _send_success(
     await _send_embed(interaction, embed, overflow, "meeseeks-report.md")
 
 
+# ─── adaptadores pro logger ──────────────────────────────────────────────
+
+def _garagem_entry(
+    g: GaragemResult, elapsed: float, outcome: str
+) -> GaragemEntry:
+    parsed = g.parsed or {}
+    return GaragemEntry(
+        model="claude",
+        elapsed_s=elapsed,
+        outcome=outcome,
+        tokens_input=g.tokens_input,
+        tokens_output=g.tokens_output,
+        cost_usd=g.cost_usd,
+        briefing_json=json.dumps(parsed) if parsed else None,
+        meeseeks_prompt=parsed.get("prompt_meeseeks"),
+        commit_type=parsed.get("commit_tipo"),
+        slug=parsed.get("slug"),
+        criticality=parsed.get("criticidade"),
+        complexity=parsed.get("complexidade"),
+    )
+
+
+def _meeseeks_entry(
+    m: MeeseeksResult, elapsed: float, outcome: str
+) -> MeeseeksEntry:
+    return MeeseeksEntry(
+        model="claude",
+        elapsed_s=elapsed,
+        outcome=outcome,
+        tokens_input=m.tokens_input,
+        tokens_output=m.tokens_output,
+        cost_usd=m.cost_usd,
+        branch=m.branch,
+        commits=m.commits,
+        report=m.relatorio,
+        diff_added=m.diff_added,
+        diff_deleted=m.diff_deleted,
+        diff_files=m.diff_files,
+    )
+
+
 # ─── comando ─────────────────────────────────────────────────────────────
 
 @client.tree.command(
@@ -193,6 +250,8 @@ async def meeseeks(interaction: discord.Interaction, task: str):
         print(f"[warn] followup falhou após defer (task={task!r})")
         return
 
+    run_id = _logger.start_run(project_id=_project_id, task_raw=task)
+
     # ── Garagem ──
     g, g_elapsed = await _run_with_heartbeat(
         status_msg,
@@ -202,18 +261,29 @@ async def meeseeks(interaction: discord.Interaction, task: str):
     g_tempo = fmt_time(g_elapsed)
 
     if g.error:
+        _logger.record_garagem(run_id, _garagem_entry(g, g_elapsed, "error"))
+        _logger.finish_run(run_id, terminal_phase="garagem_error",
+                           total_elapsed_s=g_elapsed)
         return await _send_garagem_error(interaction, status_msg, g, g_tempo)
 
     parsed = g.parsed or {}
 
     if not parsed.get("escopo_claro"):
+        _logger.record_garagem(run_id, _garagem_entry(g, g_elapsed, "pushback"))
+        _logger.finish_run(run_id, terminal_phase="garagem_pushback",
+                           total_elapsed_s=g_elapsed)
         return await _send_garagem_pushback(
             interaction, status_msg, parsed, g_tempo
         )
 
     slug = (parsed.get("slug") or "").strip()
     if not slug:
+        _logger.record_garagem(run_id, _garagem_entry(g, g_elapsed, "success"))
+        _logger.finish_run(run_id, terminal_phase="garagem_no_slug",
+                           total_elapsed_s=g_elapsed)
         return await _send_garagem_no_slug(interaction, status_msg, g_tempo)
+
+    _logger.record_garagem(run_id, _garagem_entry(g, g_elapsed, "success"))
 
     # ── Meeseeks ──
     await _try_edit(status_msg, embed_meeseeks_spawn(g_tempo))
@@ -224,19 +294,32 @@ async def meeseeks(interaction: discord.Interaction, task: str):
         invocar_meeseeks(parsed, TARGET_PROJECT_PATH),
     )
     m_tempo = fmt_time(m_elapsed)
+    total_elapsed = g_elapsed + m_elapsed
 
     if not m.success:
+        _logger.record_meeseeks(run_id, _meeseeks_entry(m, m_elapsed, "failure"))
+        _logger.finish_run(run_id, terminal_phase="meeseeks_failure",
+                           total_elapsed_s=total_elapsed)
         return await _send_meeseeks_failure(
             interaction, status_msg, m, m_tempo
         )
+
+    _logger.record_meeseeks(run_id, _meeseeks_entry(m, m_elapsed, "success"))
 
     # ── Dev server ──
     try:
         dev_port = start_dev_server(m.worktree)
     except Exception as e:
+        _logger.record_dev_server(run_id, DevServerEntry(outcome="failure"))
+        _logger.finish_run(run_id, terminal_phase="dev_server_failure",
+                           total_elapsed_s=total_elapsed)
         return await _send_dev_server_failure(
             interaction, status_msg, m, e, m_tempo
         )
+
+    _logger.record_dev_server(run_id, DevServerEntry(outcome="success", port=dev_port))
+    _logger.finish_run(run_id, terminal_phase="success",
+                       total_elapsed_s=total_elapsed)
 
     await _send_success(interaction, status_msg, m, m_tempo, dev_port)
 

@@ -20,6 +20,12 @@ class MeeseeksResult:
     branch: str | None = None
     error: str | None = None
     raw: str = ""
+    tokens_input: int | None = None
+    tokens_output: int | None = None
+    cost_usd: float | None = None
+    diff_added: int | None = None
+    diff_deleted: int | None = None
+    diff_files: int | None = None
 
 
 # ─── worktree ────────────────────────────────────────────────────────────
@@ -86,6 +92,35 @@ def _montar_user_prompt(briefing: dict, worktree: Path, branch: str) -> str:
     )
 
 
+def _parse_shortstat(text: str) -> tuple[int, int, int]:
+    """Parsea a linha de `git diff --shortstat`.
+
+    Exemplo de entrada: "3 files changed, 42 insertions(+), 7 deletions(-)"
+    Pode vir sem `insertions` ou sem `deletions` quando o diff é só de um
+    lado. Vazio quando não há diff.
+    """
+    import re
+    files   = int(m.group(1)) if (m := re.search(r"(\d+) files? changed", text)) else 0
+    added   = int(m.group(1)) if (m := re.search(r"(\d+) insertion",      text)) else 0
+    deleted = int(m.group(1)) if (m := re.search(r"(\d+) deletion",       text)) else 0
+    return added, deleted, files
+
+
+async def _diff_stats(worktree: Path, base: str = "master") -> tuple[int, int, int]:
+    """Retorna (added, deleted, files) do diff acumulado na branch."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "git", "diff", "--shortstat", f"{base}..HEAD",
+            cwd=str(worktree),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await proc.communicate()
+        return _parse_shortstat(stdout.decode().strip())
+    except Exception:
+        return 0, 0, 0
+
+
 async def _list_commits(worktree: Path, base: str = "master") -> list[str]:
     """Hashes curtos dos commits feitos na branch além de master."""
     try:
@@ -148,6 +183,7 @@ async def invocar_meeseeks(
     relatorio = r.output
     commits = await _list_commits(worktree)
     success = bool(commits)
+    added, deleted, files = await _diff_stats(worktree) if success else (None, None, None)
 
     return MeeseeksResult(
         success=success,
@@ -157,6 +193,12 @@ async def invocar_meeseeks(
         branch=branch,
         error=None if success else "nenhum commit foi criado",
         raw=relatorio,
+        tokens_input=r.tokens_input,
+        tokens_output=r.tokens_output,
+        cost_usd=r.cost_usd,
+        diff_added=added,
+        diff_deleted=deleted,
+        diff_files=files,
     )
 
 

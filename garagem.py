@@ -15,6 +15,9 @@ class GaragemResult:
     parsed: dict | None
     error: str | None
     raw: str
+    tokens_input: int | None = None
+    tokens_output: int | None = None
+    cost_usd: float | None = None
 
 
 async def invocar_garagem(task: str, project_path: Path) -> GaragemResult:
@@ -32,7 +35,12 @@ async def invocar_garagem(task: str, project_path: Path) -> GaragemResult:
     )
 
     if r.error:
-        return GaragemResult(parsed=None, error=r.error, raw=r.raw)
+        return GaragemResult(
+            parsed=None, error=r.error, raw=r.raw,
+            tokens_input=r.tokens_input,
+            tokens_output=r.tokens_output,
+            cost_usd=r.cost_usd,
+        )
 
     try:
         parsed = extrair_json(r.output)
@@ -41,6 +49,14 @@ async def invocar_garagem(task: str, project_path: Path) -> GaragemResult:
             parsed=None,
             error=f"briefing JSON inválido: {e}",
             raw=r.output,
+            tokens_input=r.tokens_input,
+            tokens_output=r.tokens_output,
+            cost_usd=r.cost_usd,
         )
 
-    return GaragemResult(parsed=parsed, error=None, raw=r.output)
+    return GaragemResult(
+        parsed=parsed, error=None, raw=r.output,
+        tokens_input=r.tokens_input,
+        tokens_output=r.tokens_output,
+        cost_usd=r.cost_usd,
+    )

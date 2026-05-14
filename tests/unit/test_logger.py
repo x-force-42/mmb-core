@@ -114,7 +114,6 @@ class TestRecordGaragem:
             turns=3,
             briefing_json='{"escopo_claro": true}',
             meeseeks_prompt="Implement X in file Y",
-            prompt_tokens=350,
             criticality="medium",
             complexity="low",
             commit_type="fix",
@@ -130,7 +129,6 @@ class TestRecordGaragem:
         assert run["garagem_turns"] == 3
         assert run["garagem_briefing_json"] == '{"escopo_claro": true}'
         assert run["garagem_meeseeks_prompt"] == "Implement X in file Y"
-        assert run["garagem_prompt_tokens"] == 350
         assert run["garagem_criticality"] == "medium"
         assert run["garagem_complexity"] == "low"
         assert run["garagem_commit_type"] == "fix"

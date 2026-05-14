@@ -107,3 +107,65 @@ class TestSuccessParsedBriefing:
 
         assert r.error is None
         assert r.parsed == briefing
+
+
+class TestPropagatesUsageAndCost:
+    """Sem esses asserts o bug de chave errada no envelope passava
+    despercebido — runner devolvia None, garagem propagava None, ninguém
+    verificava."""
+
+    async def test_propagates_tokens_and_cost_on_success(self, monkeypatch):
+        briefing = {"escopo_claro": True, "slug": "x"}
+        _patch_loader(monkeypatch)
+        _patch_runner(
+            monkeypatch,
+            ClaudeRunResult(
+                output=json.dumps(briefing),
+                error=None,
+                raw="",
+                tokens_input=1500,
+                tokens_output=400,
+                cost_usd=0.0234,
+            ),
+        )
+
+        r = await invocar_garagem("x", Path("/p"))
+
+        assert r.tokens_input == 1500
+        assert r.tokens_output == 400
+        assert r.cost_usd == 0.0234
+
+    async def test_propagates_tokens_and_cost_on_runner_error(self, monkeypatch):
+        _patch_loader(monkeypatch)
+        _patch_runner(
+            monkeypatch,
+            ClaudeRunResult(
+                output="", error="timeout", raw="",
+                tokens_input=100, tokens_output=0, cost_usd=0.001,
+            ),
+        )
+
+        r = await invocar_garagem("x", Path("/p"))
+
+        assert r.error == "timeout"
+        assert r.tokens_input == 100
+        assert r.cost_usd == 0.001
+
+    async def test_propagates_tokens_and_cost_on_invalid_briefing(
+        self, monkeypatch
+    ):
+        _patch_loader(monkeypatch)
+        _patch_runner(
+            monkeypatch,
+            ClaudeRunResult(
+                output="prosa, não json", error=None, raw="",
+                tokens_input=200, tokens_output=50, cost_usd=0.003,
+            ),
+        )
+
+        r = await invocar_garagem("x", Path("/p"))
+
+        assert "briefing JSON inválido" in r.error
+        assert r.tokens_input == 200
+        assert r.tokens_output == 50
+        assert r.cost_usd == 0.003

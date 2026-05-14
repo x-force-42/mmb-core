@@ -84,7 +84,9 @@ Schema:
   "duvidas_pro_rick": [string],
   "slug": string,
   "commit_tipo": string,
-  "commit_descricao": string
+  "commit_descricao": string,
+  "criticidade": "low" | "medium" | "high",
+  "complexidade": "low" | "medium" | "high"
 }
 ```
 
@@ -109,6 +111,23 @@ Schema:
   pushback.
 - `duvidas_pro_rick`: vazio se `escopo_claro=true`; caso contrário,
   perguntas específicas, secas.
+- `criticidade`: risco da mudança se sair errada.
+  - `low`: visual/cosmético, string isolada, dead code — quebrar
+    não afeta uso real.
+  - `medium`: lógica de UI, fluxo de tela, formatação de dado —
+    quebra é visível mas não bloqueia o produto.
+  - `high`: persistência, regra de negócio central, autenticação,
+    pagamento, dado do usuário — quebra causa perda ou bloqueio.
+- `complexidade`: esforço técnico estimado pro Meeseeks.
+  - `low`: edição localizada, 1 arquivo, sem ramificação. Mecânico.
+  - `medium`: múltiplos arquivos, requer entender padrão existente,
+    mas sem decisão arquitetural.
+  - `high`: novo módulo, refactor com efeito propagado, exige
+    decisão de design ou exploração além do briefing.
+
+Sempre preenche os dois, mesmo em pushback (`escopo_claro=false`) —
+é uma estimativa da Garagem sobre a tarefa como dita pelo Rick, não
+sobre o briefing produzido.
 
 ### Artefatos de versionamento (sempre em inglês)
 

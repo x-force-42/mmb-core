@@ -24,16 +24,12 @@ from config import CLAUDE_CLI
 
 @dataclass
 class ClaudeRunResult:
-    """Resultado de uma invocação do `claude -p`.
-
-    - `output`: conteúdo de `envelope["result"]` quando tudo deu certo.
-    - `error`: mensagem curta quando algo falhou; None quando sucesso.
-    - `raw`: texto bruto pra debug (stderr em caso de exit != 0,
-      stdout em caso de envelope inválido). Truncado em 2000 chars.
-    """
     output: str
     error: str | None
     raw: str
+    tokens_input: int | None = None
+    tokens_output: int | None = None
+    cost_usd: float | None = None
 
 
 def load_system_prompt(path: Path) -> str:
@@ -126,8 +122,12 @@ async def run_claude_p(
             raw=stdout_text[:2000],
         )
 
+    usage = envelope.get("usage") or {}
     return ClaudeRunResult(
         output=envelope.get("result", ""),
         error=None,
         raw="",
+        tokens_input=usage.get("input_tokens"),
+        tokens_output=usage.get("output_tokens"),
+        cost_usd=envelope.get("total_cost_usd"),
     )

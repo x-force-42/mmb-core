@@ -10,7 +10,12 @@ from pathlib import Path
 
 import meeseeks
 from claude_runner import ClaudeRunResult
-from meeseeks import MeeseeksResult, _montar_user_prompt, invocar_meeseeks
+from meeseeks import (
+    MeeseeksResult,
+    _montar_user_prompt,
+    _parse_shortstat,
+    invocar_meeseeks,
+)
 
 
 # ─── _montar_user_prompt (pura) ──────────────────────────────────────────
@@ -110,6 +115,12 @@ def _patch_list_commits(monkeypatch, commits):
     async def fake(worktree, base="master"):
         return commits
     monkeypatch.setattr(meeseeks, "_list_commits", fake)
+
+
+def _patch_diff_stats(monkeypatch, stats=(0, 0, 0)):
+    async def fake(worktree, base="master"):
+        return stats
+    monkeypatch.setattr(meeseeks, "_diff_stats", fake)
 
 
 def _briefing(slug="add-x") -> dict:
@@ -248,3 +259,100 @@ class TestInvocarMeeseeksSuccess:
 
         r = await invocar_meeseeks(_briefing(), Path("/p"))
         assert r.relatorio == "relatório"
+
+
+class TestPropagatesUsageAndCost:
+    """Trava propagação de tokens/cost/diff stats do runner pro
+    MeeseeksResult — campos que silenciariam None se o wiring quebrasse."""
+
+    async def test_propagates_tokens_cost_and_diff_on_success(self, monkeypatch):
+        _patch_loader(monkeypatch)
+        _patch_worktree(
+            monkeypatch, Path("/p/.worktrees/x"), "meeseeks/x"
+        )
+        _patch_runner(
+            monkeypatch,
+            ClaudeRunResult(
+                output="ok", error=None, raw="",
+                tokens_input=8000, tokens_output=2000, cost_usd=0.048,
+            ),
+        )
+        _patch_list_commits(monkeypatch, ["abc1234"])
+        _patch_diff_stats(monkeypatch, stats=(42, 7, 3))
+
+        r = await invocar_meeseeks(_briefing(), Path("/p"))
+
+        assert r.tokens_input == 8000
+        assert r.tokens_output == 2000
+        assert r.cost_usd == 0.048
+        assert r.diff_added == 42
+        assert r.diff_deleted == 7
+        assert r.diff_files == 3
+
+    async def test_diff_stats_none_when_no_commits(self, monkeypatch):
+        _patch_loader(monkeypatch)
+        _patch_worktree(
+            monkeypatch, Path("/p/.worktrees/x"), "meeseeks/x"
+        )
+        _patch_runner(
+            monkeypatch,
+            ClaudeRunResult(
+                output="ok", error=None, raw="",
+                tokens_input=100, tokens_output=20, cost_usd=0.002,
+            ),
+        )
+        _patch_list_commits(monkeypatch, [])
+        _patch_diff_stats(monkeypatch, stats=(99, 99, 99))
+
+        r = await invocar_meeseeks(_briefing(), Path("/p"))
+
+        # sem commits → não chama diff_stats, campos ficam None
+        assert r.diff_added is None
+        assert r.diff_deleted is None
+        assert r.diff_files is None
+        # mas tokens/custo continuam vindo do runner
+        assert r.tokens_input == 100
+        assert r.cost_usd == 0.002
+
+
+# ─── _parse_shortstat (pura) ─────────────────────────────────────────────
+
+class TestParseShortstat:
+    """Outputs reais do git diff --shortstat. Sem mock de subprocess —
+    testa só o parsing. Se o git mudar o formato, esses testes quebram
+    cedo (e nãopassam a vida sendo (0, 0, 0))."""
+
+    def test_full_line_with_inserts_and_deletes(self):
+        text = " 3 files changed, 42 insertions(+), 7 deletions(-)"
+        assert _parse_shortstat(text) == (42, 7, 3)
+
+    def test_single_file_singular_word(self):
+        text = " 1 file changed, 5 insertions(+), 2 deletions(-)"
+        assert _parse_shortstat(text) == (5, 2, 1)
+
+    def test_only_insertions(self):
+        text = " 2 files changed, 10 insertions(+)"
+        assert _parse_shortstat(text) == (10, 0, 2)
+
+    def test_only_deletions(self):
+        text = " 1 file changed, 8 deletions(-)"
+        assert _parse_shortstat(text) == (0, 8, 1)
+
+    def test_single_insertion_singular_word(self):
+        text = " 1 file changed, 1 insertion(+)"
+        assert _parse_shortstat(text) == (1, 0, 1)
+
+    def test_single_deletion_singular_word(self):
+        text = " 1 file changed, 1 deletion(-)"
+        assert _parse_shortstat(text) == (0, 1, 1)
+
+    def test_empty_text_returns_zeros(self):
+        assert _parse_shortstat("") == (0, 0, 0)
+
+    def test_unrelated_text_returns_zeros(self):
+        # garante que não captura nada de texto que parece similar
+        assert _parse_shortstat("nothing to report here") == (0, 0, 0)
+
+    def test_large_numbers(self):
+        text = " 127 files changed, 12345 insertions(+), 6789 deletions(-)"
+        assert _parse_shortstat(text) == (12345, 6789, 127)

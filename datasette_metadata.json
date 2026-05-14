@@ -1,0 +1,43 @@
+{
+  "title": "Mr. Meeseeks Box — runs",
+  "description": "Telemetria dos runs do /meeseeks. Cada linha é uma invocação ponta-a-ponta (Garagem → Meeseeks → dev server).",
+  "databases": {
+    "mmb": {
+      "tables": {
+        "runs": {
+          "title": "Runs",
+          "description": "Uma linha por /meeseeks. Colunas começam com garagem_/meeseeks_/dev_server_ por fase. Nulls = fase não rodou.",
+          "sort_desc": "started_at",
+          "facets": [
+            "terminal_phase",
+            "garagem_outcome",
+            "meeseeks_outcome",
+            "garagem_commit_type"
+          ]
+        },
+        "projects": {
+          "title": "Projetos-alvo",
+          "sort_desc": "created_at"
+        }
+      },
+      "queries": {
+        "ultimos_10_runs": {
+          "title": "Últimos 10 runs (resumo)",
+          "sql": "SELECT substr(started_at, 1, 19) AS quando, terminal_phase, garagem_outcome, meeseeks_outcome, garagem_slug, ROUND(total_elapsed_s, 1) AS s, ROUND(garagem_cost_usd + COALESCE(meeseeks_cost_usd, 0), 4) AS usd FROM runs ORDER BY started_at DESC LIMIT 10"
+        },
+        "custo_por_dia": {
+          "title": "Custo agregado por dia",
+          "sql": "SELECT substr(started_at, 1, 10) AS dia, COUNT(*) AS runs, ROUND(SUM(COALESCE(garagem_cost_usd, 0) + COALESCE(meeseeks_cost_usd, 0)), 4) AS usd_total, ROUND(SUM(COALESCE(total_elapsed_s, 0)) / 60.0, 1) AS minutos FROM runs GROUP BY dia ORDER BY dia DESC"
+        },
+        "taxa_pushback": {
+          "title": "Taxa de pushback da Garagem",
+          "sql": "SELECT garagem_outcome, COUNT(*) AS n, ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM runs WHERE garagem_outcome IS NOT NULL), 1) AS pct FROM runs WHERE garagem_outcome IS NOT NULL GROUP BY garagem_outcome"
+        },
+        "meeseeks_falhas": {
+          "title": "Meeseeks que falharam (pra investigar)",
+          "sql": "SELECT substr(started_at, 1, 19) AS quando, garagem_slug, task_raw, meeseeks_branch, ROUND(meeseeks_elapsed_s, 1) AS s FROM runs WHERE meeseeks_outcome = 'failure' ORDER BY started_at DESC"
+        }
+      }
+    }
+  }
+}

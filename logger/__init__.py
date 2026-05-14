@@ -39,7 +39,6 @@ class GaragemEntry:
     turns: int | None = None
     briefing_json: str | None = None
     meeseeks_prompt: str | None = None
-    prompt_tokens: int | None = None
     criticality: str | None = None  # low | medium | high
     complexity: str | None = None   # low | medium | high
     commit_type: str | None = None
@@ -132,7 +131,6 @@ class RunLogger:
                 garagem_outcome         = ?,
                 garagem_briefing_json   = ?,
                 garagem_meeseeks_prompt = ?,
-                garagem_prompt_tokens   = ?,
                 garagem_criticality     = ?,
                 garagem_complexity      = ?,
                 garagem_commit_type     = ?,
@@ -143,7 +141,7 @@ class RunLogger:
                 entry.model, entry.elapsed_s,
                 entry.tokens_input, entry.tokens_output, entry.cost_usd,
                 entry.turns, entry.outcome, entry.briefing_json,
-                entry.meeseeks_prompt, entry.prompt_tokens,
+                entry.meeseeks_prompt,
                 entry.criticality, entry.complexity,
                 entry.commit_type, entry.slug,
                 run_id,
