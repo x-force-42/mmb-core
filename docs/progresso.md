@@ -5,6 +5,62 @@ Mais recente no topo.
 
 ---
 
+## 2026-05-14 — API do cockpit operacional (E1)
+
+### E1 entregue (commit `f2aa145`)
+
+Primeira task da trilha E entregue por agente externo, totalizando
+**5 tasks por delegação** em sequência (C1, C2, E0, E1 + scaffold).
+
+- Novo módulo `api/` com FastAPI thin layer sobre o logger SDK:
+  - `api/app.py` — FastAPI + CORS + startup.
+  - `api/models.py` — Pydantic v2 schemas.
+  - `api/routes/{runs,projects,metrics}.py` — 5 endpoints REST.
+  - `api/deps.py` — singleton do RunLogger.
+  - `api/README.md` — doc inline.
+- `RunLogger` ganhou 4 métodos novos:
+  - `list_runs(...)` com filtros (project, phase, datas, paginação,
+    ordering).
+  - `list_projects()` lista cadastro.
+  - `update_run_review(...)` PATCH-only nos 3 campos manuais
+    (`merged_to_main`, `assertiveness_score`, `review_note`).
+  - `overview_metrics(days=30)` agregados pro dashboard.
+- Processo separado: `scripts/api.sh` sobe `uvicorn api.app:app`
+  em `MMB_API_PORT` (default 8765). Independência total — bot
+  funciona sem API e vice-versa.
+- `requirements.txt` formalizado (antes era implícito no .venv):
+  discord.py, python-dotenv, fastapi, uvicorn[standard], pydantic.
+- CORS habilitado pra `http://localhost:5173` (Vite default do
+  futuro repo `mmb-cockpit`).
+- **+39 testes novos** em 4 arquivos (`test_api_cors`,
+  `test_api_metrics`, `test_api_projects`, `test_api_runs`) e
+  expansão de `test_logger.py`. Total da suíte: **236 verdes**.
+
+### Marcos cumulativos do sistema de delegação
+
+| Task | Entregue em | Comportamento do agente |
+|---|---|---|
+| C1 | `b530cca` | Refactor cirúrgico, sem scope creep |
+| C2 | `ff08269` | Pivô consciente em 3 estratégias, escopo intocado |
+| E0 | (discovery) | Não foi delegado — discussão direta no chat |
+| E1 | `f2aa145` | Estrutura aderente ao brief, +39 testes |
+
+### Implicação prática
+
+A trilha E destrava a próxima frente: criação do repo separado
+`mmb-cockpit` (Vite/React/Vitest) consumindo a API local. **E2+
+agora é o próximo passo natural pra ter o cockpit no ar.**
+
+### Estado pós-E1
+
+- Worktrees ativas: A1 (em curso), mais C1/C2/E1 (pendentes
+  cleanup via `task-end.sh`).
+- Master: `f2aa145`. 236 testes verdes em ~30s.
+- B1 agora pode rodar em paralelo com A1 se aceitar conflito em
+  `bot.py` — mas recomendação fica sequencial (A1 mergeie primeiro).
+
+---
+
 ## 2026-05-14 — trilha C inteira fechada (C1 + C2)
 
 ### C2 entregue (commit `ff08269`)

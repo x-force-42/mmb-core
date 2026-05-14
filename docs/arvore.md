@@ -37,24 +37,27 @@ Obsidian e similares.
 
 ## Onde estamos
 
-Pipeline ponta-a-ponta funcional contra **um único** `TARGET_PROJECT_PATH`.
-Observabilidade gravada em SQLite com 4 queries prontas via Datasette.
-E2E cobre os principais branches do `PipelineResult`: success (×2),
-garagem_pushback, meeseeks_failure. Trilha C **inteira** entregue
-por agentes externos em ciclo completo de delegação (C1 + C2
-mergeadas via PROTOCOLO.md, sem intervenção pontual).
+Pipeline ponta-a-ponta funcional contra um único `TARGET_PROJECT_PATH`.
+Observabilidade gravada em SQLite + **API REST do cockpit (E1)**
+expondo runs/projects/métricas pra consumo de frontend separado.
+E2E cobre 3 fases do `PipelineResult`: success (×2),
+garagem_pushback, meeseeks_failure. Trilha C inteira entregue,
+mais E0+E1 — total **5 tasks entregues por agentes externos** em
+ciclo completo de delegação.
 
-Próximo movimento: **A1 + E1 em paralelo** (conjuntos de arquivos
-disjuntos — A1 toca `aquario/`+`bot.py`, E1 toca `api/`+`logger/`).
-Depois B1 entra sequencial. Trilha D (orquestrador + bootstrap
-agêntico) continua em design pra próxima onda.
+**Agora**: A1 em curso (worktree ativa). Quando A1 mergear, B1
+fica desbloqueada. Em paralelo (zero conflito), dá pra começar
+**E2** — repo separado `mmb-cockpit` consumindo a API.
+
+Trilha D (orquestrador + bootstrap agêntico) continua em design.
 
 ```
-PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
-●━●━●━●━●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ →
-                      ↑
-            Trilha C inteira fechada
-            v0.5.0+ candidato sólido
+PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
+●━●━●━●━●━●━●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ →
+                          ↑
+                Trilha C + E0/E1 fechadas
+                A1 em curso · B1 + E2 desbloqueados
+                v0.5.0+ candidato sólido
 ```
 
 ---
@@ -106,7 +109,12 @@ gitGraph
    commit id: "ee7fe3f"
    commit id: "b530cca"
    commit id: "51fdce9"
-   commit id: "ff08269" type: HIGHLIGHT
+   commit id: "ff08269"
+   commit id: "691fd76"
+   commit id: "41392ad"
+   commit id: "cc566bc"
+   commit id: "ad54042"
+   commit id: "f2aa145" type: HIGHLIGHT
 ```
 
 > A tag `v0.5.0` ainda não foi cravada. Pronta quando você quiser.
@@ -155,11 +163,14 @@ mindmap
       ✅ E0 Discovery cockpit
         Fechado em 2026-05-14
         10 decisões consolidadas
-      🎯 E1 API do cockpit
-        FastAPI thin layer no MMB
+      ✅ E1 API do cockpit
+        commit f2aa145
+        api/ módulo · FastAPI thin layer
         5 endpoints REST · processo separado
-        Read-only sobre logger SQLite
-        PATCH só nos 3 campos manuais
+        RunLogger ganhou list_runs · list_projects
+          update_run_review · overview_metrics
+        +39 testes (4 arquivos test_api_*)
+        scripts/api.sh · requirements.txt criados
       🔒 E2+ Frontend cockpit
         Repo separado ~/llab/mmb-cockpit
         Vite + React + Vitest
@@ -210,12 +221,11 @@ flowchart LR
   C4[⬜ C4 Calibração real]:::todo
 
   E0[✅ E0 Discovery]:::done
-  E1[🎯 E1 API cockpit]:::ready
+  E1[✅ E1 API cockpit]:::done
   E2[🔒 E2+ Frontend]:::locked
 
   E0 --> E1
   E1 --> E2
-  B1 -.toca logger.-> E1
 
   B1 --> A3
   B1 --> B2
