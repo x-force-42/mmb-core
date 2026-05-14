@@ -22,30 +22,35 @@ o que quer fazer? Siga:
 |---|---|---|---|---|
 | **A1** | Aquário mono-projeto | A — Presença | 🎯 pronto | [`A1-aquario-mono.md`](A1-aquario-mono.md) |
 | **B1** | Projetos como cidadão 1ª classe | B — Plataforma | 🎯 pronto | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) |
-| **E0** | Discovery — Cockpit de Operações | E — Cockpit | 🟡 em curso (conversação) | [`E0-discovery-cockpit.md`](E0-discovery-cockpit.md) |
+| **E1** | API do Cockpit de Operações | E — Cockpit | 🎯 pronto | [`E1-api-cockpit.md`](E1-api-cockpit.md) |
 | A2 | Identidade visual (Camada C+E) | A — Presença | ⬜ não iniciado | (sem brief) |
 | A3 | Aquário multi-projeto | A — Presença | 🔒 bloqueado por B1 | (sem brief) |
 | B2 | Garagem com contexto persistente | B — Plataforma | ⬜ decisão em aberto | (sem brief) |
 | B3 | Modelo por fase (Opus Garagem, Sonnet Meeseeks) | B — Plataforma | ⬜ não iniciado | (sem brief) |
 | C3 | Cenário E2E anti-escopo | C — Robustez | ⬜ não iniciado | (sem brief) |
 | C4 | Calibração com cenários reais | C — Robustez | ⬜ desbloqueado | (sem brief) |
-| E1+ | Implementação do cockpit | E — Cockpit | 🔒 espera E0 fechar | (a definir) |
+| E2+ | Frontend do Cockpit (repo separado) | E — Cockpit | 🔒 espera E1 + repo `mmb-cockpit` | (fora deste repo) |
 | ~~C1~~ | Retry transiente no claude_runner | C — Robustez | ✅ fechado em `b530cca` | [`C1-retry-transiente.md`](C1-retry-transiente.md) |
 | ~~C2~~ | Cenários E2E de erro | C — Robustez | ✅ fechado em `ff08269` | [`C2-cenarios-e2e-erro.md`](C2-cenarios-e2e-erro.md) |
+| ~~E0~~ | Discovery — Cockpit de Operações | E — Cockpit | ✅ fechado em 2026-05-14 | [`E0-discovery-cockpit.md`](E0-discovery-cockpit.md) |
 
 ## Matriz de paralelismo
 
 Quais tasks 🎯 podem rodar simultaneamente sem conflito de merge?
 
-| | A1 | B1 |
-|---|---|---|
-| **A1** | — | ⚠️ conflito em `bot.py` |
-| **B1** | ⚠️ conflito em `bot.py` | — |
+| | A1 | B1 | E1 |
+|---|---|---|---|
+| **A1** | — | ⚠️ conflito em `bot.py` | ✅ ok |
+| **B1** | ⚠️ conflito em `bot.py` | — | ⚠️ conflito em `logger/` |
+| **E1** | ✅ ok | ⚠️ conflito em `logger/` | — |
 
-Com trilha C limpa (C1 + C2 mergeadas), o próximo movimento é
-**A1 sequencial**, depois **B1**. Em paralelo a A1, dá pra abrir
-C3 (anti-escopo, só cria arquivos em `tests/e2e/scenarios/`) ou
-C4 (calibração, só lê do logger) sem conflito.
+Dá pra rodar **A1 e E1 em paralelo agora mesmo** — A1 toca
+`aquario/` + `bot.py`, E1 toca `api/` + `logger/`. Conjuntos
+disjuntos. **B1** entra depois que A1 mergear (mesmo `bot.py`)
+ou depois que E1 mergear (mesmo `logger/`).
+
+C3 (só cria em `tests/e2e/scenarios/`) e C4 (depende de C2, só lê
+logger) continuam compatíveis com qualquer combinação.
 
 ## Como criar uma task nova
 

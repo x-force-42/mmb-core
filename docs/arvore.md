@@ -44,11 +44,10 @@ garagem_pushback, meeseeks_failure. Trilha C **inteira** entregue
 por agentes externos em ciclo completo de delegação (C1 + C2
 mergeadas via PROTOCOLO.md, sem intervenção pontual).
 
-Próximo movimento: **A1** isolado (toca `bot.py` pesado, agente
-sequencial), com possibilidade de abrir **C3** ou **C4** em paralelo
-sem conflito. Depois de A1 mergear, **B1**. Em paralelo, está
-maturando a discussão de **Trilha D** (orquestrador + bootstrap
-agêntico de projeto) — ainda em design.
+Próximo movimento: **A1 + E1 em paralelo** (conjuntos de arquivos
+disjuntos — A1 toca `aquario/`+`bot.py`, E1 toca `api/`+`logger/`).
+Depois B1 entra sequencial. Trilha D (orquestrador + bootstrap
+agêntico) continua em design pra próxima onda.
 
 ```
 PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
@@ -153,13 +152,18 @@ mindmap
         Config via env por fase
         Independente de B1/B2 · pode ir junto
     Trilha E · Cockpit de Operações
-      🟡 E0 Discovery cockpit
-        Em curso · conversação ativa
-        Output: este doc preenchido + briefs E1+ implementáveis
-      🔒 E1+ Implementação
-        Definida após E0 fechar
+      ✅ E0 Discovery cockpit
+        Fechado em 2026-05-14
+        10 decisões consolidadas
+      🎯 E1 API do cockpit
+        FastAPI thin layer no MMB
+        5 endpoints REST · processo separado
         Read-only sobre logger SQLite
-        Zero coupling com bot.py
+        PATCH só nos 3 campos manuais
+      🔒 E2+ Frontend cockpit
+        Repo separado ~/llab/mmb-cockpit
+        Vite + React + Vitest
+        Fora deste repo
     Trilha C · Robustez
       ✅ C1 Retry transiente no runner
         commit b530cca
@@ -205,11 +209,13 @@ flowchart LR
   C3[⬜ C3 E2E anti-escopo]:::todo
   C4[⬜ C4 Calibração real]:::todo
 
-  E0[🟡 E0 Discovery cockpit]:::wip
-  E1[🔒 E1+ Impl cockpit]:::locked
+  E0[✅ E0 Discovery]:::done
+  E1[🎯 E1 API cockpit]:::ready
+  E2[🔒 E2+ Frontend]:::locked
 
   E0 --> E1
-  B1 -.consome.-> E1
+  E1 --> E2
+  B1 -.toca logger.-> E1
 
   B1 --> A3
   B1 --> B2
