@@ -1,0 +1,1 @@
+Renomeie a função `greet` para `welcome` em todo o projeto. O comportamento permanece idêntico — só o nome muda. Atualize todos os callsites e o teste existente. Critério de pronto: `npm test` passa e não existe mais nenhuma referência ao nome antigo.

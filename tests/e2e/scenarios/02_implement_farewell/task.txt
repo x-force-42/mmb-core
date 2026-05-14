@@ -1,0 +1,1 @@
+Existe um teste em `tests/farewell.test.js` que descreve o contrato esperado da função `farewell`. Implemente essa função em `src/messages.js` para que o teste passe. Mantenha o estilo do código vizinho (`greet`).

@@ -1,9 +1,12 @@
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests/unit", "tests/integration"]
 python_files = "test_*.py"
 addopts = "-ra --strict-markers"
 pythonpath = ["."]
 asyncio_mode = "auto"
+markers = [
+    "e2e: end-to-end real-CLI smoke (rodar via scripts/e2e.sh)",
+]
 
 [tool.coverage.run]
 source = ["."]
