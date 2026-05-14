@@ -5,6 +5,54 @@ Mais recente no topo.
 
 ---
 
+## 2026-05-14 — trilha C inteira fechada (C1 + C2)
+
+### C2 entregue (commit `ff08269`)
+
+Segunda task externa via PROTOCOLO. Adicionou 3 cenários E2E:
+
+- `03_vague_prompt_pushback` — task.txt vaga ("Melhore o código.")
+  força `garagem_pushback`, verify confere `duvidas_pro_rick ≥ 1`.
+- `04_meeseeks_failure_impossible` — setup quebra `npm run build`
+  do fixture via mutação em `package.json` (commit no master,
+  cleanup auto reverte); verify confere `meeseeks_outcome=failure`
+  e `commits == []`.
+- `05_garagem_no_slug` — descartado conforme brief (fase não
+  triggerável organicamente, opções deixadas em decisões abertas
+  do brief pra futuro).
+
+### Lição calibrada (vai pro C4)
+
+O agente tentou três estratégias antes de achar uma que produzisse
+`meeseeks_failure` consistente:
+
+1. Biblioteca inexistente → Garagem pushbackou (leu `AGENTS.md`).
+2. Teste pré-quebrado → Meeseeks racionalizou "não fui eu que
+   quebrei".
+3. Build quebrado → funcionou (binário, sem brecha pra
+   racionalização).
+
+Indica que `skills/meeseeks.md` passo 3 lê "minhas mudanças
+quebraram?" e não "tudo verde, ponto" — decisão consciente quando
+desenharmos C4. Custo da calibração ~$0.40, ~7min.
+
+### Estado do sistema de delegação
+
+C1 e C2 mergeadas via mesmo ritual: `task-start.sh` → agente
+externo → PR → `task-end.sh`. Zero intervenção pontual minha. Suite
+E2E sai de 2 cenários (só success) pra 4 (cobre 3 fases distintas
+do PipelineResult). 197 testes unit/integration verdes.
+
+### Estado pós-Trilha C
+
+- Branches sobrando: `task/C1-retry-transiente` e
+  `task/C2-cenarios-e2e-erro`. Worktrees idem. Cleanup via
+  `scripts/task-end.sh C1 C2`.
+- Próximo lote 🎯: A1 (Presença, sequencial, toca `bot.py`)
+  e B1 (Plataforma, espera A1 mergeie).
+
+---
+
 ## 2026-05-14 — primeira task entregue por agente externo
 
 ### C1 fechado (commit `b530cca`)

@@ -39,19 +39,23 @@ Obsidian e similares.
 
 Pipeline ponta-a-ponta funcional contra **um único** `TARGET_PROJECT_PATH`.
 Observabilidade gravada em SQLite com 4 queries prontas via Datasette.
-E2E reproduzível com fixture isolado, 2 cenários verdes. Sistema de
-delegação multi-agente operacional — primeira task (C1, retry
-transiente) entregue por agente externo em ciclo completo.
+E2E cobre os principais branches do `PipelineResult`: success (×2),
+garagem_pushback, meeseeks_failure. Trilha C **inteira** entregue
+por agentes externos em ciclo completo de delegação (C1 + C2
+mergeadas via PROTOCOLO.md, sem intervenção pontual).
 
-Próximo movimento: continuar a trilha C (C2 em curso por agente
-paralelo), depois abrir A1 (Presença) sequencial — Plataforma (B1)
-fica pra depois que A1 mergeie.
+Próximo movimento: **A1** isolado (toca `bot.py` pesado, agente
+sequencial), com possibilidade de abrir **C3** ou **C4** em paralelo
+sem conflito. Depois de A1 mergear, **B1**. Em paralelo, está
+maturando a discussão de **Trilha D** (orquestrador + bootstrap
+agêntico de projeto) — ainda em design.
 
 ```
-PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
-●━●━●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ →
-                  ↑
-        C1 fechado · C2 em curso · v0.5.0+ candidato
+PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
+●━●━●━●━●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ →
+                      ↑
+            Trilha C inteira fechada
+            v0.5.0+ candidato sólido
 ```
 
 ---
@@ -101,7 +105,9 @@ gitGraph
    commit id: "086c002"
    commit id: "d279e6c" tag: "v0.5.0?"
    commit id: "ee7fe3f"
-   commit id: "b530cca" type: HIGHLIGHT
+   commit id: "b530cca"
+   commit id: "51fdce9"
+   commit id: "ff08269" type: HIGHLIGHT
 ```
 
 > A tag `v0.5.0` ainda não foi cravada. Pronta quando você quiser.
@@ -152,18 +158,20 @@ mindmap
         FileNotFound + exit 2 detectados
         2 retries com backoff 1.5s+3s
         _is_transient_autoupdate isolado
-        5 testes novos · 197 verdes
-      🎯 C2 Cenários E2E de erro
-        Pushback vague_prompt
-        no_slug forçado
-        meeseeks_failure por tarefa impossível
+        5 testes novos
+      ✅ C2 Cenários E2E de erro
+        commit ff08269
+        03 vague_prompt → pushback
+        04 build quebrado → meeseeks_failure
+        05 no_slug fora · doc lição p/ C4
+        4 cenários E2E totais verdes
       ⬜ C3 Cenário E2E anti-escopo
         Verify falha se briefing inflar
         Trava disciplina da Garagem
       ⬜ C4 Calibração com cenários reais
         5 cenários reais PO/DEV
         Comparativo de modelo
-        Depende C2 verde
+        Desbloqueada por C2
 ```
 
 ### Mapa de dependências
@@ -184,7 +192,7 @@ flowchart LR
   B3[⬜ B3 Modelo por fase]:::todo
 
   C1[✅ C1 Retry transiente]:::done
-  C2[🎯 C2 E2E erro]:::ready
+  C2[✅ C2 E2E erro]:::done
   C3[⬜ C3 E2E anti-escopo]:::todo
   C4[⬜ C4 Calibração real]:::todo
 
