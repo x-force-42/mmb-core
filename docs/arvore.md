@@ -37,27 +37,30 @@ Obsidian e similares.
 
 ## Onde estamos
 
-Pipeline ponta-a-ponta funcional contra um único `TARGET_PROJECT_PATH`.
-Observabilidade gravada em SQLite + **API REST do cockpit (E1)**
-expondo runs/projects/métricas pra consumo de frontend separado.
-E2E cobre 3 fases do `PipelineResult`: success (×2),
-garagem_pushback, meeseeks_failure. Trilha C inteira entregue,
-mais E0+E1 — total **5 tasks entregues por agentes externos** em
-ciclo completo de delegação.
+Estado pós-A1: bot Discord agora **empurra eventos pro aquário ao
+vivo** via WebSocket (`born` → `state` periódico → `freaking_out`
+quando passa de 15min → `died_*` no fim). Pipeline ponta-a-ponta
+contra um único `TARGET_PROJECT_PATH`. Observabilidade gravada em
+SQLite + API REST do cockpit (E1) + presença visual em tempo real
+(A1). E2E cobre 3 fases do `PipelineResult`.
 
-**Agora**: A1 em curso (worktree ativa). Quando A1 mergear, B1
-fica desbloqueada. Em paralelo (zero conflito), dá pra começar
-**E2** — repo separado `mmb-cockpit` consumindo a API.
+**Trilhas A e C inteiras fechadas** (A1 + C1 + C2). E0 + E1 também.
+Total **6 tasks entregues por agentes externos** em ciclo completo
+de delegação — todas via PROTOCOLO.md, sem intervenção pontual.
+
+**Agora**: só B1 sobra como 🎯 ready. Em paralelo com B1, dá pra
+abrir **E2** (frontend cockpit no `~/llab/mmb-cockpit`, repo
+criado em `629e681`/`d5b913a`, F0 do scaffold pronto pra delegar).
 
 Trilha D (orquestrador + bootstrap agêntico) continua em design.
 
 ```
-PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
-●━●━●━●━●━●━●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ →
-                          ↑
-                Trilha C + E0/E1 fechadas
-                A1 em curso · B1 + E2 desbloqueados
-                v0.5.0+ candidato sólido
+PASSADO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ FUTURO
+●━●━●━●━●━●━●━●━●━●━●━●━●━●━●━ ━ ━ ━ ━ ━ ━ ━ →
+                            ↑
+                  Trilhas A + C + E0+E1 fechadas
+                  B1 pendente · mmb-cockpit bootstrappado
+                  v0.5.0+ candidato sólido
 ```
 
 ---
@@ -114,7 +117,10 @@ gitGraph
    commit id: "41392ad"
    commit id: "cc566bc"
    commit id: "ad54042"
-   commit id: "f2aa145" type: HIGHLIGHT
+   commit id: "f2aa145"
+   commit id: "8cba014"
+   commit id: "8480c26"
+   commit id: "3287a49" type: HIGHLIGHT
 ```
 
 > A tag `v0.5.0` ainda não foi cravada. Pronta quando você quiser.
@@ -131,11 +137,13 @@ escopo fechado, dependências resolvidas, critério de pronto claro.
 mindmap
   root((MMB<br/>futuro))
     Trilha A · Presença
-      🎯 A1 Aquário mono-projeto
-        WebSocket client com reconnect
-        Mapeia decay → health 0..1
-        Eventos born/died/freaking_out
-        Aceita project mockado por enquanto
+      ✅ A1 Aquário mono-projeto
+        commit 3287a49
+        Módulo aquario/ side-car desacoplado
+        WebSocket client com reconnect · ring buffer
+        Registry _meeseeks_vivos pra snapshot reset
+        _heartbeat ganhou on_tick
+        +44 testes (client · lifecycle · messages)
       ⬜ A2 Identidade visual
         Camada C · Meeseeks-XXXX nome único
         Camada E · botões inline mergear/descartar
@@ -207,7 +215,7 @@ flowchart LR
   classDef todo   fill:#eee,stroke:#999
   classDef locked fill:#ccc,stroke:#666,stroke-dasharray:4
 
-  A1[🎯 A1 Aquário mono]:::ready
+  A1[✅ A1 Aquário mono]:::done
   A2[⬜ A2 Camadas C+E]:::todo
   A3[🔒 A3 Aquário multi]:::locked
 

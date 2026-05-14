@@ -5,6 +5,87 @@ Mais recente no topo.
 
 ---
 
+## 2026-05-14 — A1 fechado · presença ao vivo operacional
+
+### A1 entregue (commit `3287a49`)
+
+Sexta task externa via PROTOCOLO. Bot Discord agora empurra
+eventos pro aquário ao vivo via WebSocket.
+
+- Novo módulo `aquario/` desacoplado do core (zero import de
+  discord.py dentro dele — mesmo padrão do `logger/` e do `api/`):
+  - `aquario/client.py` — `AquarioClient` com reconnect, ring
+    buffer, snapshot reset, drain task.
+  - `aquario/lifecycle.py` — funções puras: `health_from_elapsed`,
+    `event_for_phase`. Testáveis sem IO.
+  - `aquario/messages.py` — dataclasses + serializer (`Snapshot`,
+    `State`, `Event`, `Meeseeks`).
+- `bot.py` ganhou hooks de emit em pontos canônicos do ciclo de
+  vida:
+  - `on_ready`: instancia cliente, conecta no
+    `AQUARIUM_WS_URL` se `AQUARIUM_ENABLED=true`. Falha não
+    derruba o bot.
+  - `_aquario_born` no spawn do Meeseeks (garante invariante
+    "born antes de tudo").
+  - `_aquario_tick` periódico via `_heartbeat` (que ganhou
+    parâmetro `on_tick`).
+  - `_aquario_die` na fase terminal.
+- **Registry `_meeseeks_vivos`** mantém último estado conhecido
+  pra que o `snapshot_provider` reanuncie no reconnect (aquário
+  trata snapshot como reset completo).
+- `config.py` ganhou `AQUARIUM_ENABLED` (default `false`) e
+  `AQUARIUM_WS_URL` (default `ws://localhost:8080/ws`).
+- `requirements.txt`: adicionou `websockets`.
+- **+44 testes novos** em 3 arquivos:
+  - `test_aquario_client.py` — mock WebSocket, reconnect, ring
+    buffer, drain logic (271 linhas).
+  - `test_aquario_lifecycle.py` — funções puras.
+  - `test_aquario_messages.py` — schemas.
+- Total da suíte: **280 testes verdes** em ~22s.
+
+### Implicação prática
+
+Pra ver Meeseeks ao vivo: subir o aquário deles em `localhost:8080`,
+abrir o front, e rodar o bot com `AQUARIUM_ENABLED=true`. Spawn
+de Meeseeks aparece na tela; saúde decai com o decay temporal;
+freak out depois de 15min; morte feliz/derrotada no fim.
+
+### Trilhas A + C inteiras fechadas
+
+| Trilha | Tasks fechadas | Estado |
+|---|---|---|
+| **A — Presença** | A1 | ✅ MVP fechado. A2/A3 ⬜ pendentes. |
+| **B — Plataforma** | (nenhuma) | B1 🎯 pronto. |
+| **C — Robustez** | C1 + C2 | ✅ MVP fechado. C3/C4 ⬜ pendentes. |
+| **E — Cockpit** | E0 + E1 | ✅ API + discovery feitos. E2+ frontend em `~/llab/mmb-cockpit`. |
+
+### Repo `mmb-cockpit` bootstrappado
+
+Em paralelo com A1, foi criado `~/llab/mmb-cockpit` como repo
+separado pro frontend Vite/React/TS/Vitest do cockpit. Camada
+agêntica importada e adaptada do MMB; F0 (scaffold) pronto pra
+delegar lá.
+
+### Cumulativo do sistema de delegação
+
+| Task | Onde mergeada | Comportamento |
+|---|---|---|
+| C1 | `b530cca` (MMB) | Refactor cirúrgico, escopo intocado |
+| C2 | `ff08269` (MMB) | Pivô consciente em 3 estratégias |
+| E0 | (discovery) | Direto no chat, sem agente |
+| E1 | `f2aa145` (MMB) | +39 testes, estrutura aderente |
+| A1 | `3287a49` (MMB) | Side-car com registry, +44 testes |
+| (cockpit bootstrap) | `629e681` (mmb-cockpit) | Camada agêntica importada |
+
+### Estado dos branches
+
+Worktrees pendentes cleanup:
+`task/C1-retry-transiente`, `task/C2-cenarios-e2e-erro`,
+`task/A1-aquario-mono`, `task/E1-api-cockpit`. Rodar
+`scripts/task-end.sh` quando quiser limpar (não bloqueia nada).
+
+---
+
 ## 2026-05-14 — meta-marco · workflow codificado
 
 Depois de 5 ciclos consecutivos de delegação bem-sucedida (C1, C2,

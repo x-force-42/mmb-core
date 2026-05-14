@@ -20,7 +20,6 @@ o que quer fazer? Siga:
 
 | ID | Título | Trilha | Status | Brief |
 |---|---|---|---|---|
-| **A1** | Aquário mono-projeto | A — Presença | 🎯 em curso (agente ativo) | [`A1-aquario-mono.md`](A1-aquario-mono.md) |
 | **B1** | Projetos como cidadão 1ª classe | B — Plataforma | 🎯 pronto | [`B1-projetos-1a-classe.md`](B1-projetos-1a-classe.md) |
 | A2 | Identidade visual (Camada C+E) | A — Presença | ⬜ não iniciado | (sem brief) |
 | A3 | Aquário multi-projeto | A — Presença | 🔒 bloqueado por B1 | (sem brief) |
@@ -29,6 +28,7 @@ o que quer fazer? Siga:
 | C3 | Cenário E2E anti-escopo | C — Robustez | ⬜ não iniciado | (sem brief) |
 | C4 | Calibração com cenários reais | C — Robustez | ⬜ desbloqueado | (sem brief) |
 | E2+ | Frontend do Cockpit (repo separado) | E — Cockpit | 🔒 espera repo `mmb-cockpit` | (fora deste repo) |
+| ~~A1~~ | Aquário mono-projeto | A — Presença | ✅ fechado em `3287a49` | [`A1-aquario-mono.md`](A1-aquario-mono.md) |
 | ~~C1~~ | Retry transiente no claude_runner | C — Robustez | ✅ fechado em `b530cca` | [`C1-retry-transiente.md`](C1-retry-transiente.md) |
 | ~~C2~~ | Cenários E2E de erro | C — Robustez | ✅ fechado em `ff08269` | [`C2-cenarios-e2e-erro.md`](C2-cenarios-e2e-erro.md) |
 | ~~E0~~ | Discovery — Cockpit de Operações | E — Cockpit | ✅ fechado em 2026-05-14 | [`E0-discovery-cockpit.md`](E0-discovery-cockpit.md) |
@@ -36,22 +36,12 @@ o que quer fazer? Siga:
 
 ## Matriz de paralelismo
 
-Quais tasks 🎯 podem rodar simultaneamente sem conflito de merge?
+Pós-A1 e E1 mergeadas, **só sobra B1** como 🎯 ativa. Sem matriz
+significativa por enquanto — qualquer task nova que abrir e tocar
+`bot.py`, `logger/` ou `config.py` precisa coordenar com B1.
 
-| | A1 | B1 |
-|---|---|---|
-| **A1** | — | ⚠️ conflito em `bot.py` |
-| **B1** | ⚠️ conflito em `bot.py` | — |
-
-Estado pós-E1: agora **B1 está livre pra rodar em paralelo com
-A1** apenas se aceitar o conflito em `bot.py` — não tem mais
-conflito em `logger/` porque o `logger/` ganhou os métodos do E1
-sem mexer nos métodos que B1 vai precisar adicionar (B1 estende:
-`active` column, soft delete, autocomplete). Ainda assim,
-**recomendo sequencial** (A1 mergeie primeiro, depois B1).
-
-C3 (só cria em `tests/e2e/scenarios/`) e C4 (depende de C2, só
-lê logger) continuam compatíveis com qualquer combinação.
+C3 (só cria em `tests/e2e/scenarios/`) e C4 (depende de C2, só lê
+logger) seguem compatíveis com B1 sem conflito.
 
 ## Como criar uma task nova
 
