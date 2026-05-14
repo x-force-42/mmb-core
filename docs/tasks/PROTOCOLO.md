@@ -29,9 +29,10 @@ git rev-parse --show-toplevel
 git rev-parse --git-dir
 ```
 
-Se o toplevel for `/home/eliezer/llab/mr-meeseeks-box`, você está na
-raiz. **Pare.** Peça ao Rick para rodar `scripts/task-start.sh <id>`
-e reiniciar a sessão na worktree criada.
+Se o toplevel for a raiz do repo `mmb-core`, você está na raiz.
+**Pare.** Peça ao Rick para rodar
+`.tooling/bin/task-start.sh mmb-core <id>` (da raiz do MMB) e
+reiniciar a sessão na worktree criada.
 
 Worktree legítima tem toplevel em
 `/home/eliezer/llab/mr-meeseeks-box/.worktrees/<id>-<slug>` e
@@ -130,4 +131,5 @@ git worktree remove --force .worktrees/<id>-<slug>
 git branch -d task/<id>-<slug>
 ```
 
-`scripts/task-end.sh <id>` automatiza isso quando você quiser.
+`.tooling/bin/task-end.sh mmb-core <id>` (rodado da raiz do MMB)
+automatiza isso quando você quiser.

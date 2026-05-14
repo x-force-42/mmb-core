@@ -100,7 +100,8 @@ sessão, leia o doc certo:
   [`docs/ORQUESTRADOR.md`](docs/ORQUESTRADOR.md). Ele descreve
   o ciclo das 7 fases, princípios implícitos, anti-padrões.
 - **Você é uma sessão Claude em uma worktree** (agente delegado),
-  iniciada via `scripts/task-start.sh <id>`? → leia
+  iniciada via `.tooling/bin/task-start.sh mmb-core <id>` (rodado
+  da raiz do MMB)? → leia
   [`docs/tasks/PROTOCOLO.md`](docs/tasks/PROTOCOLO.md) primeiro,
   depois o brief da sua task em `docs/tasks/<id>-<slug>.md`.
 
@@ -112,9 +113,10 @@ outra coisa**:
 
 1. **Verifique se está numa worktree de task, não na raiz do repo.**
    Rode `git rev-parse --show-toplevel` e `git branch --show-current`.
-   - Se você está na raiz do MMB (`/home/eliezer/llab/mr-meeseeks-box`)
-     e na branch `master`: avise o Rick e ofereça rodar
-     `scripts/task-start.sh <id>` pra criar a worktree antes de começar.
+   - Se você está na raiz do repo `mmb-core` e na branch default
+     (`main`): avise o Rick e ofereça rodar
+     `.tooling/bin/task-start.sh mmb-core <id>` (da raiz do MMB)
+     pra criar a worktree antes de começar.
    - Se você está numa worktree (`.../.worktrees/<id>-<slug>`) e na
      branch `task/<id>-<slug>`: ok, prossiga.
 

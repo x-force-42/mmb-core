@@ -101,11 +101,13 @@ juntos.
 
 ### 5. Provisionamento da worktree
 
-Rick roda `scripts/task-start.sh <id>`. Script:
+Rick roda `.tooling/bin/task-start.sh mmb-core <id>` da raiz do
+MMB. Script:
 
-- Atualiza `master` (`git pull` se houver remoto, senão skip).
+- Atualiza o default branch do repo (`git pull` se houver remoto,
+  senão skip).
 - Cria worktree em `.worktrees/<id>-<slug>/` com branch
-  `task/<id>-<slug>` a partir de `master`.
+  `task/<id>-<slug>` a partir do default branch.
 - Se a worktree já existe (re-entrada), só relembra o path.
 
 Esse passo é deliberado — não automatizar pra dentro do agente.
